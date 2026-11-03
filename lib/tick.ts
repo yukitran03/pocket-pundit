@@ -4,7 +4,7 @@ import { q, withLease } from "./db.ts";
 import { processMemoryQueue } from "./memory.ts";
 import { matchState, timeline } from "./feed.ts";
 import { computeDrama } from "./drama.ts";
-import { askText, edit, ratingKeyboard, send, sendBrief } from "./telegram.ts";
+import { askText, edit, ratingKeyboard, send, sendBrief, tg } from "./telegram.ts";
 import { localParts, walruscan } from "./util.ts";
 import { enqueueMemory } from "./memory.ts";
 import { buildTaste, lessonMemory, parseMemory, humanKey } from "./taste.ts";
@@ -113,7 +113,13 @@ async function notifyStored(chatId: number, messageId: number, blobId: string) {
     const p = job[0];
     await edit(chatId, messageId, `${askText(p).replace("\n\nDid you watch it?", "")}\n\nYou: <b>${p.rating}</b> · ✅ stored on Walrus · <a href="${walruscan(blobId)}">${short}</a>`);
   } else {
-    await send(chatId, `✅ Stored on Walrus · <a href="${walruscan(blobId)}">${short}</a>`);
+    await tg("sendMessage", {
+      chat_id: chatId,
+      text: `✅ Stored on Walrus · <a href="${walruscan(blobId)}">${short}</a>`,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+      reply_parameters: { message_id: messageId, allow_sending_without_reply: true },
+    });
   }
 }
 
