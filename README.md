@@ -163,6 +163,7 @@ flowchart LR
 | Privacy | Seal-encrypted on Walrus. Namespaces are HMAC-derived, so no user id appears on-chain. Credential-shaped strings are redacted before any write ([lib/memory.ts](lib/memory.ts)) |
 | Chain reads | **Tatum Sui gateway, native gRPC** (`sui.rpc.v2` protos vendored from MystenLabs/sui-apis): `LedgerService/GetServiceInfo`; `LedgerService/GetObject` (the MemWalAccount: owner, delegate keys, active); `StateService/ListOwnedObjects` (every Walrus `Blob` object the account owns, with `storage.end_epoch`); `LedgerService/GetTransaction` (checkpoint time of a lock's certification). GraphQL for delegate-key events ([lib/tatum.ts](lib/tatum.ts)) |
 | Proof | Each stored memory's base64url blob id is converted to the on-chain u256 and matched to its Sui `Blob` object. The dashboard shows the Sui object and expiry epoch next to each memory; `npm run verify` writes [docs/PROOF.md](docs/PROOF.md) |
+| Ownership (optional) | `/own` opens a page that uses the Wallet Standard (no JSON-RPC): the viewer's wallet calls `account::create_account` and `account::add_delegate_key` itself. The server finds the account with Tatum GraphQL (`AccountCreated` event) and verifies the key with Tatum gRPC `GetObject` before switching that viewer's writes and recalls to their account. Removing the key is detected at the next brief ([lib/own.ts](lib/own.ts)) |
 | Portability | Memories follow a documented sentence + tags format ([docs/MEMORY-FORMAT.md](docs/MEMORY-FORMAT.md)); `/export` downloads a taste passport any app can rebuild the same taste from |
 | Blind A/B + locks | Two memory picks and one memory-off control, shuffled, with neutral reasons only. The brief is locked on Walrus before kick-off, with the control sealed by a commit that is revealed after the last full time ([lib/lock.ts](lib/lock.ts)) |
 
@@ -177,6 +178,7 @@ flowchart LR
 | `/calendar` | A private feed for Google or Apple Calendar, with a 20-minute reminder on each pick |
 | `/duo` | Pair with a friend: one extra pick a night that suits both tastes and both watch windows (neither sees the other's memories) |
 | `/export` | Download your taste passport: every memory with its Walrus blob link, plus the learned weights |
+| `/own` | Optional: move your memory into a Walrus Memory account your own Sui wallet controls, and remove the app's key whenever you like |
 | `/teach <text>` | Save a preference, e.g. *I love late comebacks* or *no matches after 2am on weekdays* (plain messages work too) |
 | `/me` | Your private dashboard: picks with cited memories, learned weights, memory wall, A/B |
 | `/alerts on\|off` | "Worth switching on" pings during matches |
@@ -197,7 +199,7 @@ npm run verify                                      # cross-check stored memorie
 ## Honest limits
 
 - The hosted relayer runs Seal decryption and embeddings, so it sees plaintext during writes and recalls (Walrus Memory's default path). Don't write anything you wouldn't tell a server you trust.
-- The app operates one Walrus Memory account (custodial) with a namespace per user. Per-user self-custody is the next step.
+- By default the app operates one Walrus Memory account with a namespace per user, so nobody needs a wallet. Viewers who want custody can move to their own account with `/own`. Memories saved before removing the app's key stay readable by that key (Walrus Memory's forward-only revocation).
 - Memories last as long as their Walrus storage (currently about 15 epochs from write). The TS SDK has no renew yet, so expiry is shown rather than hidden.
 - Live alerts depend on the scheduler's cadence, so they can arrive a few minutes after a match turns.
 - Football data comes from a public, anonymous API. There are no odds, no betting, and no club or federation branding.
