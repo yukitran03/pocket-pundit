@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BRAND } from "@/lib/brand";
 import { Wordmark } from "./Logo";
 import { IconTelegram } from "./Icons";
+import { HeaderLights } from "@/components/season/Season";
 
 export function SiteHeader() {
   return (
@@ -21,6 +22,7 @@ export function SiteHeader() {
           </a>
         </nav>
       </div>
+      <HeaderLights />
     </header>
   );
 }

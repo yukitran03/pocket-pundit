@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BRAND } from "@/lib/brand";
 import { LogoMark } from "./Logo";
+import { SnowToggle } from "@/components/season/Season";
 
 export const REPO_URL = "https://github.com/yukitran03/match-finder";
 
@@ -47,7 +48,10 @@ export function SiteFooter() {
       </div>
       <div className="shell flex flex-col gap-2 border-t py-6 text-xs text-chalk-4 sm:flex-row sm:justify-between" style={{ borderColor: "var(--line-faint)" }}>
         <p>Team and competition names are shown as plain text for identification only. No affiliation implied.</p>
-        <p>Sui mainnet · Walrus mainnet</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <SnowToggle />
+          <p>Sui mainnet · Walrus mainnet</p>
+        </div>
       </div>
     </footer>
   );

@@ -8,11 +8,14 @@ import { useIdle, useInView, useReducedMotion, useWebGL } from "@/components/thr
 import { KIND_META, PRIMARY_KINDS } from "@/lib/client/kinds";
 import { fmtInt } from "@/lib/client/format";
 import { useStats } from "./StatsProvider";
+import { useSeason } from "@/components/season/useSeason";
+import { SeasonChip } from "@/components/season/Season";
 
 const NightPitchScene = dynamic(() => import("@/components/three/NightPitchScene"), { ssr: false, loading: () => null });
 
 export function HeroVisual() {
   const stats = useStats();
+  const { snow } = useSeason();
   const reduced = useReducedMotion();
   const webgl = useWebGL();
   const idle = useIdle();
@@ -40,6 +43,7 @@ export function HeroVisual() {
 
   return (
     <div ref={box} className="relative h-full w-full">
+      <SeasonChip className="absolute left-[var(--gutter)] top-3 z-10 sm:left-5 sm:top-5" />
       <div
         className="relative aspect-[4/3] w-full sm:absolute sm:inset-0 sm:aspect-auto"
         style={{
@@ -51,7 +55,7 @@ export function HeroVisual() {
         {show3d ? (
           <div className={`absolute inset-0 transition-opacity duration-1000 ${ready ? "opacity-100" : "opacity-0"}`}>
             <SceneBoundary onError={() => setFailed(true)}>
-              <NightPitchScene memoryCount={count} reducedMotion={reduced} active={inView} scroll={scroll} onReady={() => setReady(true)} />
+              <NightPitchScene memoryCount={count} reducedMotion={reduced} active={inView} scroll={scroll} snow={snow} onReady={() => setReady(true)} />
             </SceneBoundary>
           </div>
         ) : null}

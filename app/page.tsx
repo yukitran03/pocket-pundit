@@ -32,6 +32,7 @@ export default function Home() {
       {/* ------------------------------------------------------------ hero */}
       <section aria-labelledby="hero-title" className="relative overflow-hidden">
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(50% 60% at 78% 30%, rgb(255 240 210 / 0.05), transparent 70%)" }} />
+        <div aria-hidden className="season-ambient pointer-events-none absolute inset-0" />
         <div className="shell relative grid gap-6 pb-6 pt-10 md:pt-16 lg:grid-cols-12 lg:gap-0 lg:pb-16 lg:pt-20">
           <div className="relative z-10 lg:col-span-6 lg:pr-6">
             <p className="micro text-chalk-2">Your football pundit, in Telegram</p>

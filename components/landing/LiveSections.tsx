@@ -6,6 +6,7 @@ import { DataSourceBadge, EmptyState, ErrorState, Skeleton } from "@/components/
 import { cleanMemoryText, fmtAgo, fmtCompact, fmtInt } from "@/lib/client/format";
 import { useNow } from "@/lib/client/useNow";
 import { useStats } from "./StatsProvider";
+import { CountUp } from "@/components/fx/CardFx";
 
 export function StatsSourceBadge() {
   const s = useStats();
@@ -34,7 +35,7 @@ export function LiveNumbers() {
               <Skeleton className="h-12 w-24" />
             ) : (
               <span className="font-display text-[clamp(2.6rem,1.6rem+3vw,3.75rem)] font-extrabold leading-none" title={fmtInt(t.value)}>
-                {fmtCompact(t.value)}
+                <CountUp value={t.value} format={fmtCompact} />
               </span>
             )}
           </dd>

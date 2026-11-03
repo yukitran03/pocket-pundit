@@ -190,3 +190,16 @@ Every effect has a reduced-motion path and none of them carries content on its o
 | Gooey morph (`GooeyWords`) | Hero headline: "your evening." → "staying up for." → "the highlights." | Outgoing and incoming phrases cross-blur under an SVG alpha-threshold filter, so the letters melt into each other. Filter only applied during the 0.9 s morph (3.2 s hold); phrases share one grid cell, so no layout shift. The h1 keeps the real sentence in an sr-only span; the animated layer is aria-hidden. | Static first phrase. Also pauses while off-screen or the tab is hidden. |
 | Smooth scroll (Lenis, MIT) | Landing and /proof | Wheel and trackpad smoothing, anchor links honour `scroll-padding-top`. Nested scrollers opt out with `data-lenis-prevent`. Not mounted on /me. | Off. Also off on touch-first devices (`pointer: coarse`). |
 | Section reveal (`ScrollReveal`) | Blocks marked `data-reveal` | Blocks still below the fold after hydration fade up 22px once; the rail line next to each section index draws itself. Server HTML is always visible. | Nothing hidden, nothing moves. |
+
+## 10. Team-colour effects and the winter season
+
+**Official crests** (`OFFICIAL_CRESTS=1` on the server only; production keeps it off until licensing is cleared): `TeamCrest` shows the feed's square PNG with a `srcset` of the 80, 150 and 256 px files (no upscaling at 76 px on 2x screens), a soft drop shadow and a faint chalk halo for dark badges. It samples a separate 80 px CORS copy, buckets saturated pixels by hue and tints its side of the card with the dominant one; black, white or grey crests keep the hash tint. Any image error falls back to the monogram.
+
+**Effects** (`components/fx/CardFx.tsx`, all decorative, transform and opacity only, off under reduced motion):
+- Featured VS card: a home-to-away conic border that sweeps once on arrival and once on hover, then rests (a square layer sized to the card's diagonal, rotated on the compositor). No endless loop.
+- Pointer spotlight on VS cards: a soft glow in the colour of the side under the pointer, mouse and pen only.
+- Count-up for the worth-watching ring and the live numbers, once, when they scroll in. Screen readers get the final value.
+- A short flare burst after "Reveal score" on matches with drama 80 or more (only after a real burn).
+- A home-left, away-right colour wash on compact rows on hover.
+
+**Winter nights** (`components/season/*`, `lib/client/season.ts`): on automatically from 1 November to 6 January (`?season=winter` or `?season=off` previews it). Snow drifts through the hero's floodlights (one Points draw call, lit inside the four cones, 900 flakes on desktop and 380 on phones), a very light page snow canvas (14 to 48 flakes, paused when the tab is hidden), warm string lights under the header that warm up once, a "Winter nights · Boxing Day in N days" chip on the hero visual, and holly-red and pine-green only in the hero's ambient glow. Footer "Snow on/off" is remembered in localStorage (in memory when storage is blocked). Under reduced motion there is no snow; the chip and the static lights stay. Nothing takes layout space, so nothing shifts.

@@ -3,6 +3,7 @@ import { Archivo, Big_Shoulders, JetBrains_Mono } from "next/font/google";
 import { BRAND } from "@/lib/brand";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { SeasonLayer } from "@/components/season/Season";
 import "./globals.css";
 
 const display = Big_Shoulders({
@@ -67,6 +68,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           {children}
         </main>
         <SiteFooter />
+        <SeasonLayer />
       </body>
     </html>
   );

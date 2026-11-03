@@ -29,9 +29,11 @@ export interface NightPitchProps {
   onReady?: () => void;
   /** 0 at the top of the page, 1 once the hero has scrolled away. Tilts the camera and lifts tonight's three. */
   scroll?: MutableRefObject<number>;
+  /** Winter nights: snow through the floodlights (off under reduced motion). */
+  snow?: boolean;
 }
 
-export default function NightPitchScene({ memoryCount, reducedMotion, active, onReady, scroll }: NightPitchProps) {
+export default function NightPitchScene({ memoryCount, reducedMotion, active, onReady, scroll, snow = false }: NightPitchProps) {
   const fallback = useRef(0);
   const s = scroll ?? fallback;
   return (
@@ -53,6 +55,7 @@ export default function NightPitchScene({ memoryCount, reducedMotion, active, on
       <Floodlights />
       <Memories count={memoryCount} reducedMotion={reducedMotion} />
       {reducedMotion ? null : <RisingPicks scroll={s} />}
+      {snow && !reducedMotion ? <SnowSized /> : null}
     </Canvas>
   );
 }
@@ -425,4 +428,90 @@ function RisingPicks({ scroll }: { scroll: MutableRefObject<number> }) {
       ))}
     </group>
   );
+}
+
+/**
+ * Winter nights: snow drifting through the floodlights. One Points draw call; the fall, the drift and the
+ * lighting all run in the vertex shader, so the CPU does nothing per flake. A flake inside one of the four
+ * floodlight cones is lit warm and bright; outside, it is a faint cold speck.
+ */
+const SNOW_VERT = `
+uniform float uTime;
+uniform float uH;
+uniform float uSize;
+uniform vec3 uHead[4];
+uniform vec3 uAim[4];
+attribute float aSeed;
+varying float vLit;
+void main() {
+  vec3 p = position;
+  float fall = 0.32 + fract(aSeed * 13.7) * 0.42;
+  p.y = mod(p.y - uTime * fall, uH);
+  p.x += sin(uTime * 0.55 + aSeed * 6.283) * 0.35;
+  p.z += cos(uTime * 0.45 + aSeed * 4.1) * 0.25;
+  float lit = 0.0;
+  for (int i = 0; i < 4; i++) {
+    vec3 axis = uAim[i] - uHead[i];
+    float len = length(axis);
+    axis /= len;
+    vec3 v = p - uHead[i];
+    float t = clamp(dot(v, axis), 0.0, len);
+    float r = 0.3 + (t / len) * 3.1;
+    float d = length(v - axis * t);
+    lit += (1.0 - smoothstep(r * 0.35, r, d)) * (1.0 - 0.6 * t / len);
+  }
+  vLit = clamp(lit, 0.0, 1.0);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_PointSize = uSize * (0.55 + fract(aSeed * 7.31) * 0.9) * (32.0 / -mv.z);
+  gl_Position = projectionMatrix * mv;
+}`;
+const SNOW_FRAG = `
+uniform sampler2D uTex;
+varying float vLit;
+void main() {
+  float a = texture2D(uTex, gl_PointCoord).a * (0.34 + 0.66 * vLit);
+  vec3 col = mix(vec3(0.72, 0.8, 0.86), vec3(1.0, 0.95, 0.84), vLit);
+  gl_FragColor = vec4(col * a, a);
+}`;
+
+export function Snow({ count }: { count: number }) {
+  const tex = useMemo(() => glowTexture(64), []);
+  const dpr = useThree((st) => st.viewport.dpr);
+  const { geo, mat } = useMemo(() => {
+    const rnd = mulberry32(2611);
+    const pos = new Float32Array(count * 3);
+    const seed = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      pos[i * 3] = (rnd() * 2 - 1) * (HX + 3.5);
+      pos[i * 3 + 1] = rnd() * 7.5;
+      pos[i * 3 + 2] = (rnd() * 2 - 1) * (HZ + 3);
+      seed[i] = rnd();
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setAttribute("aSeed", new THREE.BufferAttribute(seed, 1));
+    const heads = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => new THREE.Vector3(sx * (HX + 1.5), 4.4, sz * (HZ + 1.3)));
+    const aims = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => new THREE.Vector3(sx * HX * 0.15, 0, sz * HZ * 0.1));
+    const m = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uH: { value: 7.5 }, uSize: { value: 7 * dpr }, uHead: { value: heads }, uAim: { value: aims }, uTex: { value: tex } },
+      vertexShader: SNOW_VERT,
+      fragmentShader: SNOW_FRAG,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    });
+    return { geo: g, mat: m };
+  }, [count, tex, dpr]);
+  useEffect(() => () => { geo.dispose(); mat.dispose(); tex.dispose(); }, [geo, mat, tex]);
+  useFrame((_, dt) => {
+    mat.uniforms.uTime.value += Math.min(dt, 0.05);
+  });
+  return <points geometry={geo} material={mat} frustumCulled={false} />;
+}
+
+/** Fewer flakes on small canvases (phones). */
+function SnowSized() {
+  const w = useThree((st) => st.size.width);
+  return <Snow count={w < 640 ? 380 : 900} />;
 }

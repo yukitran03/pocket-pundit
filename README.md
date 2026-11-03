@@ -36,7 +36,7 @@ Memory tunes every one of those: the leagues you enjoy, the styles you love or b
 
 ## Architecture
 
-Read left to right: who triggers work, the Vercel routes, the agent core, and the mainnet services it writes to and reads from.
+Read left to right: who triggers work, the Vercel routes, the agent core, and the mainnet services it writes to and reads from. The heartbeat is a Vercel Queues message that schedules the next one five minutes out (`/api/queues/heartbeat`), with a daily Vercel cron and an hourly GitHub Actions run as backups.
 
 ```mermaid
 flowchart LR
@@ -48,18 +48,18 @@ flowchart LR
 
   subgraph IN["① Inputs"]
     direction TB
-    TG["💬 Telegram bot<br/>picks · ratings · /ask · /card"]:::user
-    WEB["🖥 Web<br/>/ · /me · /proof"]:::user
+    TG["💬 Telegram bot<br/>picks · ratings · /ask · /duo"]:::user
+    WEB["🖥 Web<br/>/ · /me · /proof · /own"]:::user
     CAL["📅 Calendar apps<br/>subscribed feed"]:::user
-    CRON["⏱ Scheduler<br/>every 5–10 min"]:::app
+    CRON["⏱ Vercel Queues heartbeat<br/>every 5 min, self-scheduling"]:::app
   end
 
   subgraph VER["② Vercel · Next.js 16"]
     direction TB
     HOOK["/api/telegram<br/>webhook secret"]:::app
     TICK["/api/cron/tick<br/>bearer secret"]:::app
-    API["/api/tonight · me · stats · proof"]:::app
-    OUT["/api/card · /api/cal<br/>signed single-purpose keys"]:::app
+    API["/api/tonight · me · stats · proof · own"]:::app
+    OUT["/api/card · /api/cal · /api/me/export<br/>signed keys"]:::app
   end
 
   subgraph CORE["③ Agent core · lib/"]
@@ -202,4 +202,5 @@ npm run verify                                      # cross-check stored memorie
 - By default the app operates one Walrus Memory account with a namespace per user, so nobody needs a wallet. Viewers who want custody can move to their own account with `/own`. Memories saved before removing the app's key stay readable by that key (Walrus Memory's forward-only revocation).
 - Memories last as long as their Walrus storage (currently about 15 epochs from write). The TS SDK has no renew yet, so expiry is shown rather than hidden.
 - Live alerts depend on the scheduler's cadence, so they can arrive a few minutes after a match turns.
-- Football data comes from a public, anonymous API. There are no odds, no betting, and no club or federation branding.
+- Football data comes from a public, anonymous API. There are no odds and no betting. Club crests are generated monograms by default; the feed's official team pictures only appear if `OFFICIAL_CRESTS=1` is set, which stays off until their use is cleared.
+- The public feed has results and timelines for some competitions only (it leaves several big leagues "scheduled"). Picks prefer competitions it settles, on both A/B arms, and matches without a result are still asked about.

@@ -257,6 +257,7 @@ describe("a viewer's first evening, end to end", () => {
     world.add({ ...LIGA, home: "Norte", away: "Sur", kickoff: new Date(day2 + 8 * H), status: 1, hs: null, as: null });
     world.add({ ...MINOR, home: "Village E", away: "Village F", kickoff: new Date(day2 + 9 * H), status: 1, hs: null, as: null });
     world.add({ ...L1, home: "Plage", away: "Foret", kickoff: new Date(day2 + 10 * H), status: 1, hs: null, as: null });
+    await L.db.q("delete from kv where k like 'feed:cal:%'");
     const u = await L.telegram.getUser(U.id);
     const at = new Date(L.util.localToUtc(L.util.localParts(tomorrowNoon, TZ).date, 18, TZ).getTime() + 5 * 60_000);
     const b = await L.picker.buildBrief(u, at);
@@ -391,6 +392,7 @@ describe("watch together and taste passport", () => {
     const day3 = L.util.localToUtc(lp.date, 12, TZ).getTime();
     world.add({ ...EPL, home: "Duo Home", away: "Duo Away", kickoff: new Date(day3 + 8 * H), status: 1, hs: null, as: null });
     world.add({ ...MINOR, home: "Hamlet A", away: "Hamlet B", kickoff: new Date(day3 + 9 * H), status: 1, hs: null, as: null });
+    await L.db.q("delete from kv where k like 'feed:cal:%'"); // earlier steps may have cached these windows empty
     const u = await L.telegram.getUser(U.id);
     const at = new Date(L.util.localToUtc(lp.date, 18, TZ).getTime() + 5 * 60_000);
     const { duoPick } = await import("../lib/duo.ts");

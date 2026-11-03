@@ -19,6 +19,7 @@ export function BurnReveal({
   children,
   className = "",
   height = 64,
+  burst = false,
 }: {
   label?: string;
   hint?: string;
@@ -26,6 +27,8 @@ export function BurnReveal({
   children: ReactNode;
   className?: string;
   height?: number;
+  /** A short flare burst once the burn finishes (only after a real burn, never on the instant path). */
+  burst?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>("covered");
   const box = useRef<HTMLDivElement>(null);
@@ -34,17 +37,27 @@ export function BurnReveal({
   const content = useRef<HTMLDivElement>(null);
   const origin = useRef<[number, number]>([0.5, 0.5]);
   const paper = useRef<HTMLCanvasElement | null>(null);
+  const [bursting, setBursting] = useState(false);
 
   // Start the burn once the canvas is mounted over the cover.
   useEffect(() => {
     if (phase !== "burning" || !canvas.current || !paper.current) return;
     let cancelled = false;
     const el = canvas.current;
+    let burnt = false;
     import("./burn")
       .then(({ burn }) => burn({ canvas: el, paper: paper.current!, origin: origin.current, onFirstFrame: () => cover.current && (cover.current.style.visibility = "hidden") }))
+      .then(() => {
+        burnt = true;
+      })
       .catch(() => undefined)
       .finally(() => {
-        if (!cancelled) setPhase("revealed");
+        if (cancelled) return;
+        setPhase("revealed");
+        if (burnt && burst) {
+          setBursting(true);
+          setTimeout(() => setBursting(false), 1000);
+        }
       });
     return () => {
       cancelled = true;
@@ -93,6 +106,14 @@ export function BurnReveal({
         </button>
       ) : null}
       {phase === "burning" ? <canvas ref={canvas} aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" /> : null}
+      {bursting ? (
+        <span aria-hidden className="flare-burst">
+          <b />
+          {Array.from({ length: 10 }, (_, i) => (
+            <i key={i} style={{ "--a": `${i * 36 + 8}deg`, "--d": `${(i % 3) * 40}ms` } as React.CSSProperties} />
+          ))}
+        </span>
+      ) : null}
     </div>
   );
 }

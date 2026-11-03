@@ -5,6 +5,8 @@ import { RATING_META } from "@/lib/client/kinds";
 import { IconChevron, IconExternal, IconLock } from "@/components/site/Icons";
 import { UntilKickoff } from "./RelTime";
 import { HeadToHead, VsPanel, WorthRing } from "@/components/match/Vs";
+import { teamColors } from "@/components/match/crest";
+import { CardSpot } from "@/components/fx/CardFx";
 
 /**
  * A pick as the product shows it, presented like a football game's versus screen. Reading order:
@@ -19,9 +21,13 @@ export function PickCard({ pick, tz, openCites = false, sampleLabel, showTz = fa
   const tone = pick.arm === "memory" ? "memory" : pick.arm === "control" ? "control" : "neutral";
   const titleId = `${pick.id}-title`;
   const reasons = pick.reasons.slice(0, 3);
+  const hc = teamColors(pick.home);
+  const ac = teamColors(pick.away);
+  const tints = { "--home": hc.tint, "--away": ac.tint, "--home-a": hc.a ?? 0.46, "--away-a": ac.a ?? 0.46 } as React.CSSProperties;
 
   return (
-    <article className="card relative flex h-full flex-col overflow-hidden" aria-labelledby={titleId}>
+    <article data-team-tints className="card relative flex h-full flex-col overflow-hidden" style={tints} aria-labelledby={titleId}>
+      <CardSpot />
       {pick.arm === "memory" ? (
         <div aria-hidden className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full opacity-60" style={{ background: "radial-gradient(closest-side, rgb(240 83 28 / 0.2), transparent)" }} />
       ) : null}

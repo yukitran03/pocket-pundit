@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 /**
  * Deterministic monogram crest: a shield with the team's initials, coloured from a hash of its name, so the
@@ -12,13 +12,103 @@ import { CREST_PALETTE, hashName, teamInitials } from "./crest";
 
 const SHIELD = "M20 1.6 36.5 6.4v14.8c0 11-6.6 19.2-16.5 23.4C10.1 40.4 3.5 32.2 3.5 21.2V6.4Z";
 
-export function TeamCrest({ name, size = 44, className = "", logo }: { name: string; size?: number; className?: string; logo?: string | null }) {
+/** The feed serves square PNGs at 80, 150 and 256 px ("teams-sq-3/4/5"). Offer them as a srcset so a 76 px
+ *  crest on a 2x screen gets the 256 px file instead of an upscaled 80 px one. */
+function crestSources(logo: string) {
+  const m = logo.match(/^(.*\/picture\/teams-sq-)\d(\/.+)$/);
+  if (!m) return { src: logo, srcSet: undefined, sample: logo };
+  const at = (n: number) => `${m[1]}${n}${m[2]}`;
+  return { src: at(4), srcSet: `${at(3)} 80w, ${at(4)} 150w, ${at(5)} 256w`, sample: at(3) };
+}
+
+/**
+ * Average the saturated pixels of a crest (CORS-enabled 80 px copy) into an "r g b" tint, or null when the
+ * crest is mostly black, white or grey. Light colours get a lighter wash so panels stay readable.
+ */
+function sampleTint(url: string): Promise<{ tint: string; a: number } | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.decoding = "async";
+    img.onerror = () => resolve(null);
+    img.onload = () => {
+      try {
+        const n = 24;
+        const c = document.createElement("canvas");
+        c.width = c.height = n;
+        const ctx = c.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return resolve(null);
+        ctx.drawImage(img, 0, 0, n, n);
+        const d = ctx.getImageData(0, 0, n, n).data;
+        // Bucket saturated pixels by hue and keep the dominant bucket, so a red-and-yellow crest reads red
+        // (or yellow), not a muddy average of both.
+        const bins = Array.from({ length: 12 }, () => ({ r: 0, g: 0, b: 0, w: 0 }));
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 160) continue;
+          const R0 = d[i], G0 = d[i + 1], B0 = d[i + 2];
+          const mx = Math.max(R0, G0, B0), mn = Math.min(R0, G0, B0);
+          const sat = mx ? (mx - mn) / mx : 0;
+          if (sat < 0.28 || mx < 40) continue; // skip black, white, grey
+          const c = mx - mn;
+          const hue = mx === R0 ? ((G0 - B0) / c + 6) % 6 : mx === G0 ? (B0 - R0) / c + 2 : (R0 - G0) / c + 4;
+          const bin = bins[Math.floor((hue / 6) * 12) % 12];
+          bin.r += R0 * sat; bin.g += G0 * sat; bin.b += B0 * sat; bin.w += sat;
+        }
+        const top = bins.reduce((a, b) => (b.w > a.w ? b : a));
+        if (top.w < 4) return resolve(null);
+        const [R, G, B] = [top.r / top.w, top.g / top.w, top.b / top.w].map(Math.round);
+        const lum = (0.2126 * R + 0.7152 * G + 0.0722 * B) / 255;
+        resolve({ tint: `${R} ${G} ${B}`, a: lum > 0.6 ? 0.24 : lum > 0.42 ? 0.34 : 0.46 });
+      } catch {
+        resolve(null); // tainted canvas or decode error: keep the hash tint
+      }
+    };
+    img.src = url;
+  });
+}
+
+export function TeamCrest({ name, size = 44, className = "", logo, side }: { name: string; size?: number; className?: string; logo?: string | null; side?: "home" | "away" }) {
   const [failed, setFailed] = useState(false);
-  if (logo && !failed) {
+  const box = useRef<HTMLSpanElement>(null);
+  const sources = logo ? crestSources(logo) : null;
+
+  // With an official crest, tint this side of the card from the crest's own colours (when it has any).
+  useEffect(() => {
+    if (!sources || failed || !side) return;
+    let live = true;
+    sampleTint(sources.sample).then((t) => {
+      if (!live || !t) return;
+      let el: HTMLElement | null = box.current;
+      while (el) {
+        if (el.hasAttribute("data-team-tints")) {
+          el.style.setProperty(`--${side}`, t.tint);
+          el.style.setProperty(`--${side}-a`, String(t.a));
+        }
+        el = el.parentElement;
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [sources?.sample, failed, side]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (sources && !failed) {
     return (
-      <span className={`crest grid shrink-0 place-items-center ${className}`} style={{ width: size, height: (size * 46) / 40 }} aria-hidden>
+      <span ref={box} className={`crest crest-logo relative grid shrink-0 place-items-center ${className}`} style={{ width: size, height: (size * 46) / 40 }} aria-hidden>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={logo} alt="" width={size} height={size} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="h-auto max-h-full w-full object-contain drop-shadow-[0_2px_6px_rgb(0_0_0_/_0.45)]" />
+        <img
+          src={sources.src}
+          srcSet={sources.srcSet}
+          sizes={`${size}px`}
+          alt=""
+          width={size}
+          height={size}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
+          className="relative h-auto max-h-full w-[88%] object-contain [filter:drop-shadow(0_4px_8px_rgb(0_0_0/0.5))_drop-shadow(0_0_1px_rgb(238_243_236/0.35))]"
+        />
       </span>
     );
   }

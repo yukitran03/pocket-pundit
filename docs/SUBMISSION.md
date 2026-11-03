@@ -35,7 +35,7 @@ Deadline: **10 Nov 2026, 17:00 UTC**. Judging runs 11–16 Nov.
 
 1. Open https://pocket-pundit.vercel.app/proof. It reads the MemWalAccount, its delegate keys and every Walrus Blob object live through Tatum gRPC, and matches them to the memories the agent says it stored.
 2. Start https://t.me/finder_matching_bot and run the four setup taps. Tonight's three picks arrive, and the brief is locked on Walrus.
-3. Send `/ask which leagues do I enjoy?`, which runs a semantic recall over your own namespace. Send `/card`, `/calendar`, `/duo` or `/export` to try the rest.
+3. Send `/ask which leagues do I enjoy?`, which runs a semantic recall over your own namespace. Send `/card`, `/calendar`, `/duo`, `/export` or `/own` to try the rest.
 4. Read [docs/MEMORY-FORMAT.md](MEMORY-FORMAT.md) for the memory format and taste rules, and [docs/PROOF.md](PROOF.md) for an on-chain snapshot.
 
 ## Before submitting

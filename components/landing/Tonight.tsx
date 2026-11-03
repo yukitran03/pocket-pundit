@@ -11,6 +11,17 @@ import { Meter } from "@/components/pick/PickCard";
 import { BurnReveal } from "@/components/fx/BurnReveal";
 import { HeadToHead, VsPanel, WorthRing } from "@/components/match/Vs";
 import { TeamCrest } from "@/components/match/TeamCrest";
+import { teamColors } from "@/components/match/crest";
+import { Aura, CardSpot } from "@/components/fx/CardFx";
+
+const tintsOf = (home: string, away: string) => {
+  const h = teamColors(home), a = teamColors(away);
+  return { home: h.tint, away: a.tint, homeA: h.a ?? 0.46, awayA: a.a ?? 0.46 };
+};
+const tintVars = (home: string, away: string) => {
+  const t = tintsOf(home, away);
+  return { "--home": t.home, "--away": t.away, "--home-a": t.homeA, "--away-a": t.awayA } as React.CSSProperties;
+};
 import { EmptyState, Skeleton } from "@/components/site/States";
 import { IconAlert, IconChevron, IconTelegram } from "@/components/site/Icons";
 
@@ -174,7 +185,9 @@ function FeaturedVs({ m, tz, now }: { m: TonightMatch; tz: string; now: number |
   const reasons = tidyReasons(m.reasons, m).slice(0, 2);
   const id = `top-${m.matchId}`;
   return (
-    <article className="card overflow-hidden p-4 sm:p-6" aria-labelledby={id}>
+    <Aura tints={tintsOf(m.home, m.away)}>
+    <article data-team-tints style={tintVars(m.home, m.away)} className="card relative overflow-hidden p-4 sm:p-6" aria-labelledby={id}>
+      <CardSpot />
       <h4 id={id} className="sr-only">
         Top match tonight: {m.home} versus {m.away}, {m.competition}
         {m.status === "live" ? `, live, ${m.minute ?? ""} minutes played` : `, kick-off ${fmtTime(m.kickoff, tz)}`}
@@ -183,7 +196,7 @@ function FeaturedVs({ m, tz, now }: { m: TonightMatch; tz: string; now: number |
         <span className="chip !text-chalk" style={{ boxShadow: "inset 0 0 0 1px rgb(57 135 229 / 0.55)" }}>Top match tonight</span>
         <span className="chip !h-auto min-h-6 !whitespace-normal py-0.5">{m.competition}</span>
       </div>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-stretch lg:gap-8">
+      <div className="relative grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-stretch lg:gap-8">
         <VsPanel home={m.home} away={m.away} logos={m.logos} size="lg" fill center={<KickoffCell m={m} tz={tz} now={now} big />} />
         <div className="min-w-0">
           <div className="flex items-center justify-between gap-4">
@@ -204,6 +217,7 @@ function FeaturedVs({ m, tz, now }: { m: TonightMatch; tz: string; now: number |
         </div>
       </div>
     </article>
+    </Aura>
   );
 }
 
@@ -211,8 +225,9 @@ function FeaturedVs({ m, tz, now }: { m: TonightMatch; tz: string; now: number |
 function VsRow({ m, rank, tz, now, index = 0 }: { m: TonightMatch; rank: number; tz: string; now: number | null; index?: number }) {
   const reasons = tidyReasons(m.reasons, m).slice(0, 2);
   return (
-    <li style={{ "--i": index } as React.CSSProperties} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 border-b border-[var(--line-faint)] px-4 py-4 last:border-0 sm:px-5 md:grid-cols-[1.5rem_minmax(0,1fr)_6.5rem_9.5rem] md:gap-x-5">
-      <span aria-hidden className="hidden font-display text-xl font-extrabold leading-none text-chalk-4 md:block">{rank}</span>
+    <li data-team-tints style={{ "--i": index, ...tintVars(m.home, m.away) } as React.CSSProperties} className="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 border-b border-[var(--line-faint)] px-4 py-4 last:border-0 sm:px-5 md:grid-cols-[1.5rem_minmax(0,1fr)_6.5rem_9.5rem] md:gap-x-5">
+      <span aria-hidden className="row-wash" />
+      <span aria-hidden className="relative hidden font-display text-xl font-extrabold leading-none text-chalk-4 md:block">{rank}</span>
       <div className="col-span-2 min-w-0 md:col-span-1">
         <p className="sr-only">
           {rank}. {m.home} versus {m.away}, {m.competition}
@@ -291,7 +306,8 @@ function Replays({ replays, tz, now }: { replays: ReplayMatch[]; tz: string; now
 function ReplayCard({ r, tz, now }: { r: ReplayMatch; tz: string; now: number | null }) {
   const hasScore = r.homeScore !== null && r.awayScore !== null;
   return (
-    <li className="card flex flex-col p-5">
+    <li data-team-tints style={tintVars(r.home, r.away)} className="card relative flex flex-col overflow-hidden p-5">
+      <CardSpot />
       <p className="truncate text-xs text-chalk-3">
         {r.competition} · {fmtDay(r.kickoff, tz)} {fmtTime(r.kickoff, tz)}
         {now ? <span className="sr-only">, {fmtAgo(r.kickoff, now)}</span> : null}
@@ -306,7 +322,7 @@ function ReplayCard({ r, tz, now }: { r: ReplayMatch; tz: string; now: number | 
       ) : null}
       <div className="mt-auto pt-4">
         {hasScore ? (
-          <BurnReveal srLabel={`Reveal the final score of ${r.home} versus ${r.away}`}>
+          <BurnReveal srLabel={`Reveal the final score of ${r.home} versus ${r.away}`} burst={r.drama >= 80}>
             <p className="text-center" aria-label={`Final score: ${r.home} ${r.homeScore}, ${r.away} ${r.awayScore}`}>
               <span className="font-display text-[2.4rem] font-extrabold leading-none tnum">
                 {r.homeScore}

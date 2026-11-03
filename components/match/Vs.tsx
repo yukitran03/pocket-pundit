@@ -3,6 +3,7 @@ import type { FormLine, MatchForm } from "@/lib/contract";
 import { TeamCrest } from "./TeamCrest";
 import { teamColors } from "./crest";
 import { VsMotion } from "./VsMotion";
+import { CountUp } from "@/components/fx/CardFx";
 
 type Size = "md" | "lg";
 
@@ -46,7 +47,7 @@ export function VsPanel({
   const a = teamColors(away);
   const crest = size === "lg" ? 76 : 50;
   return (
-    <div className={`vs ${fill ? "h-full" : ""} ${className}`} style={{ "--home": h.tint, "--away": a.tint, "--home-a": h.a ?? 0.46, "--away-a": a.a ?? 0.46 } as React.CSSProperties}>
+    <div data-team-tints className={`vs ${fill ? "h-full" : ""} ${className}`} style={{ "--home": h.tint, "--away": a.tint, "--home-a": h.a ?? 0.46, "--away-a": a.a ?? 0.46 } as React.CSSProperties}>
       {titleId ? (
         <p id={titleId} className="sr-only">
           {home} versus {away}
@@ -61,7 +62,7 @@ export function VsPanel({
         </svg>
         <div aria-hidden className={`vs-grid relative grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center ${size === "lg" ? "gap-3 p-5 sm:gap-6 sm:p-8" : "gap-2 p-4"}`}>
           <div className="vs-team flex min-w-0 flex-col items-start gap-2.5 text-left">
-            <TeamCrest name={home} size={crest} className="vs-crest" logo={logos?.home} />
+            <TeamCrest name={home} size={crest} className="vs-crest" logo={logos?.home} side="home" />
             <p className="vs-name w-full font-display font-extrabold leading-[0.92] text-chalk [text-wrap:balance]" style={nameStyle(home, size)}>{home}</p>
           </div>
           <div className={`flex flex-col items-center text-center ${size === "lg" ? "min-w-[4.75rem] gap-2.5 sm:min-w-[6.5rem]" : "min-w-[4.25rem] gap-1.5"}`}>
@@ -69,7 +70,7 @@ export function VsPanel({
             {center}
           </div>
           <div className="vs-team flex min-w-0 flex-col items-end gap-2.5 text-right">
-            <TeamCrest name={away} size={crest} className="vs-crest" logo={logos?.away} />
+            <TeamCrest name={away} size={crest} className="vs-crest" logo={logos?.away} side="away" />
             <p className="vs-name w-full font-display font-extrabold leading-[0.92] text-chalk [text-wrap:balance]" style={nameStyle(away, size)}>{away}</p>
           </div>
         </div>
@@ -93,7 +94,7 @@ export function WorthRing({ value, label = "Worth watching", tone = "neutral", s
           <circle cx="32" cy="32" r={r} fill="none" stroke="var(--ink-3)" strokeWidth="6" />
           <circle cx="32" cy="32" r={r} fill="none" stroke={RING_TONE[tone]} strokeWidth="6" strokeLinecap="round" strokeDasharray={`${(c * v) / 100} ${c}`} />
         </svg>
-        <span className="font-display font-extrabold leading-none tnum" style={{ fontSize: size * 0.36 }}>{v}</span>
+        <span aria-hidden className="font-display font-extrabold leading-none tnum" style={{ fontSize: size * 0.36 }}><CountUp value={v} /></span>
       </span>
     </div>
   );

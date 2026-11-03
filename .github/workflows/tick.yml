@@ -1,10 +1,10 @@
 name: scheduler tick
 
-# Vercel Hobby crons run once a day, so the frequent heartbeat comes from here.
-# Every 10 minutes: live alerts and kick-off reminders need it (about 1,000 Actions minutes over the hackathon week).
+# Backup heartbeat only. The real 5-minute clock is a self-scheduling Vercel Queues message
+# (app/api/queues/heartbeat); each tick here also re-seeds it in case the chain ever breaks.
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "17 * * * *"
   workflow_dispatch: {}
 
 jobs:
