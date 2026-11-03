@@ -22,6 +22,8 @@ Every one of those is tuned by memory: the leagues you enjoy, the styles you lov
 
 ## Architecture
 
+Read left to right: who triggers work, the Vercel routes, the agent core, and the mainnet services it writes to and reads from. A daily Vercel cron backs up the GitHub Actions heartbeat.
+
 ```mermaid
 flowchart LR
   classDef user fill:#1d3b2a,stroke:#7fd1a0,color:#e8f1ea
@@ -30,57 +32,53 @@ flowchart LR
   classDef data fill:#1f1f2e,stroke:#a29bfe,color:#ecebff
   classDef ext fill:#2b2410,stroke:#e8b84a,color:#fff4d6
 
-  subgraph People["👤 You"]
-    TG["Telegram<br/>@finder_matching_bot"]:::user
-    WEB["Browser<br/>/ · /me · /proof"]:::user
+  subgraph IN["① Inputs"]
+    direction TB
+    TG["💬 Telegram<br/>@finder_matching_bot"]:::user
+    WEB["🖥 Web<br/>/ · /me · /proof"]:::user
+    GHA["⏱ GitHub Actions<br/>every 10 min"]:::app
   end
 
-  subgraph Schedulers["⏱ Schedulers"]
-    GHA["GitHub Actions<br/>every 10 min"]:::app
-    VC["Vercel cron<br/>daily backup"]:::app
-  end
-
-  subgraph Vercel["▲ Next.js 16 on Vercel (Node runtime)"]
-    HOOK["/api/telegram<br/>webhook + secret"]:::app
+  subgraph VER["② Vercel · Next.js 16"]
+    direction TB
+    HOOK["/api/telegram<br/>webhook secret"]:::app
     TICK["/api/cron/tick<br/>bearer secret"]:::app
     API["/api/me · stats · proof"]:::app
-    subgraph Core["Agent core (lib/)"]
-      PICK["picker.ts<br/>2 memory picks + 1 memory-off control"]:::core
-      TASTE["taste.ts<br/>memory text ⇄ weights"]:::core
-      DRAMA["drama.ts<br/>timeline → 0–100"]:::core
-      EXTRA["extras.ts<br/>live alerts · reminders · missed"]:::core
-      QUEUE["memory.ts<br/>durable, paced, idempotent writes"]:::core
-      CHAIN["tatum.ts<br/>gRPC + GraphQL client"]:::core
-    end
   end
 
-  DB[("Neon Postgres<br/>users · picks · write queue<br/>recall events · caches")]:::data
-
-  subgraph External["🌐 Mainnet services"]
-    MW["Walrus Memory relayer<br/>remember · recall · list"]:::ext
-    WAL[("Walrus storage<br/>Seal-encrypted blobs")]:::ext
-    TAT["Tatum Sui gateway<br/>gRPC sui.rpc.v2 · GraphQL"]:::ext
-    SUI[("Sui mainnet<br/>MemWalAccount · Blob objects")]:::ext
-    FD["Public football data API<br/>fixtures · form · timelines · live"]:::ext
+  subgraph CORE["③ Agent core · lib/"]
+    direction TB
+    PICK["picker + taste<br/>memory arm vs memory-off control"]:::core
+    LOOP["drama + extras<br/>settle · live alerts · reminders"]:::core
+    QUEUE["memory queue<br/>paced · idempotent · redacted"]:::core
+    CHAIN["tatum client<br/>native gRPC + GraphQL"]:::core
   end
 
-  TG -- updates --> HOOK
-  HOOK -- replies, briefs, alerts --> TG
+  subgraph NET["④ Mainnet"]
+    direction TB
+    MW["Walrus Memory relayer<br/>remember · recall"]:::ext
+    WAL[("Walrus<br/>Seal-encrypted blobs")]:::ext
+    TAT["Tatum Sui gateway<br/>sui.rpc.v2"]:::ext
+    SUI[("Sui<br/>MemWalAccount · Blob objects")]:::ext
+  end
+
+  FD["⚽ Public football data<br/>fixtures · form · timelines · live"]:::ext
+  DB[("Neon Postgres<br/>users · picks · queue · caches")]:::data
+
+  TG <--> HOOK
   WEB --> API
   GHA --> TICK
-  VC --> TICK
   HOOK --> PICK
-  TICK --> PICK & DRAMA & EXTRA & QUEUE
+  TICK --> PICK & LOOP & QUEUE
   API --> CHAIN
-  PICK --> TASTE
-  PICK -- "recall (2 queries)" --> MW
-  QUEUE -- remember / status --> MW
+  PICK -- recall --> MW
+  QUEUE -- remember --> MW
   MW --> WAL
-  WAL -. "Blob object, end_epoch" .-> SUI
-  CHAIN -- "GetObject · ListOwnedObjects · events" --> TAT
+  WAL -. "one Blob object per memory" .-> SUI
+  CHAIN -- "GetObject · ListOwnedObjects" --> TAT
   TAT --> SUI
-  PICK & DRAMA & EXTRA --> FD
-  Core <--> DB
+  PICK & LOOP --> FD
+  CORE --- DB
 ```
 
 ## One day of learning
