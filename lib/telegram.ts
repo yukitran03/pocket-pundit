@@ -5,6 +5,7 @@ import { lockBrief, lockLine } from "./lock.ts";
 import { BRAND } from "./brand.ts";
 import { purposeKey } from "./auth.ts";
 import { askMemory } from "./extras2.ts";
+import { duoCode, duoPick, holdInvite, pair, parseDuoCode, takeInvite, unpair, type DuoPick } from "./duo.ts";
 import { enqueueMemory, namespaceFor } from "./memory.ts";
 import { buildBrief, type BriefResult, type UserRow } from "./picker.ts";
 import { preferenceMemory, ratingMemory, kickBucket, limitMemory, RATING_WORD } from "./taste.ts";
@@ -86,7 +87,7 @@ export async function getUser(id: number): Promise<(UserRow & { onboard_step: st
   return u ? { ...u, id: Number(u.id), chat_id: Number(u.chat_id) } : null;
 }
 
-async function startUser(from: any, chatId: number) {
+async function startUser(from: any, chatId: number, payload?: string) {
   const name = [from.first_name, from.last_name].filter(Boolean).join(" ") || from.username || "there";
   await q(
     `insert into users (id, chat_id, name, username, namespace) values ($1,$2,$3,$4,$5)
@@ -94,11 +95,17 @@ async function startUser(from: any, chatId: number) {
     [from.id, chatId, name, from.username ?? null, namespaceFor(from.id)],
   );
   const u = await getUser(from.id);
+  const inviter = parseDuoCode(payload);
+  const inv = inviter && inviter !== from.id ? await getUser(inviter) : null;
+  if (inv && u?.onboard_step === "done") return linkDuo(u, inv);
+  if (inv) await holdInvite(from.id, inv.id);
   if (u?.onboard_step === "done") return sendHelp(chatId, true);
   await q(`update users set onboard_step = 'tz' where id = $1`, [from.id]);
   await send(
     chatId,
-    `<b>Hi ${esc(name)}, I'm ${BRAND.name}.</b>\n\nEvery evening I go through the day's fixtures (often 400+) and send you the three most worth your time, inside the hours you can actually watch. No spoilers, a reminder before kick-off, and a ping if a game turns into a thriller.\n\nAfter full time, one tap tells me how it was. I check what really happened in the match and keep what I learn in <b>your own memory</b>, encrypted on Walrus and verifiable on Sui. No wallet needed.\n\nFour quick questions, then tonight's picks. First, where are you?`,
+    `<b>Hi ${esc(name)}, I'm ${BRAND.name}.</b>\n\nEvery evening I go through the day's fixtures (often 400+) and send you the three most worth your time, inside the hours you can actually watch. No spoilers, a reminder before kick-off, and a ping if a game turns into a thriller.\n\nAfter full time, one tap tells me how it was. I check what really happened in the match and keep what I learn in <b>your own memory</b>, encrypted on Walrus and verifiable on Sui. No wallet needed.\n\n${inv ? `${esc(String(inv.name).split(" ")[0])} invited you to watch together. After setup you'll both get one shared pick a night.
+
+` : ""}Four quick questions, then tonight's picks. First, where are you?`,
     TZ_OPTIONS.map(([label, tz]) => [{ text: label, callback_data: `tz:${tz}` }]),
   );
 }
@@ -119,7 +126,7 @@ async function leaguesKeyboard(userId: number): Promise<Kb> {
   return rows;
 }
 
-export function briefText(user: UserRow, b: BriefResult, dayIndex: number, missed?: { home: string; away: string; competition: string; drama: number } | null): string {
+export function briefText(user: UserRow, b: BriefResult, dayIndex: number, missed?: { home: string; away: string; competition: string; drama: number } | null, duo?: DuoPick | null): string {
   const lines = [`<b>Tonight's picks · day ${dayIndex}</b>`, `I scanned ${b.considered} fixtures in your window (${hh(user.window_start)} to ${hh(user.window_end)}).`, ""];
   for (const p of [...b.picks].sort((a, c) => a.slot - c.slot)) {
     lines.push(`<b>${p.slot}. ${esc(p.c.f.home)} v ${esc(p.c.f.away)}</b>`);
@@ -129,6 +136,7 @@ export function briefText(user: UserRow, b: BriefResult, dayIndex: number, misse
   }
   if (!b.picks.length) lines.push("Nothing kicks off in your window tonight. I'll look again tomorrow.");
   if (b.picks.length) lines.push("🔒 Locked on Walrus before kick-off. Which pick ran with memory off stays sealed until the last full time.", "");
+  if (duo) lines.push(`👥 Watch together with ${esc(duo.partnerName)}: <b>${esc(duo.home)} v ${esc(duo.away)}</b> · ${duo.mineLocal} your time (${duo.theirsLocal} theirs). Picked for both of your tastes.`, "");
   if (missed) lines.push(`📼 Worth the highlights from last night: <b>${esc(missed.home)} v ${esc(missed.away)}</b> (${esc(missed.competition)}), drama ${missed.drama}/100. No score here.`, "");
   lines.push(
     b.memoriesUsed
@@ -144,8 +152,9 @@ export async function sendBrief(user: UserRow, now = new Date()) {
   const b = await buildBrief(user, now);
   await lockBrief(user, b).catch(() => null);
   const missed = await missedLastNight(user, now).catch(() => null);
+  const duo = await duoPick(user as any, now).catch(() => null);
   const days = Math.max(1, Math.floor((now.getTime() - new Date(user.created_at).getTime()) / 86_400_000) + 1);
-  await send(user.chat_id, briefText(user, b, days, missed),[[{ text: "Why these? Open your memory", url: dashboardUrl(user.id) }]]);
+  await send(user.chat_id, briefText(user, b, days, missed, duo),[[{ text: "Why these? Open your memory", url: dashboardUrl(user.id) }]]);
   await q(`update users set last_brief_date = $2 where id = $1`, [user.id, b.briefDate]);
   return b;
 }
@@ -300,10 +309,41 @@ async function sendCalendar(user: UserRow) {
   );
 }
 
+async function linkDuo(u: any, inviter: any, announceToJoiner = true) {
+  if (Number(u.id) === Number(inviter.id)) return;
+  await pair(Number(u.id), Number(inviter.id));
+  const a = String(u.name || "your friend").split(" ")[0];
+  const b = String(inviter.name || "your friend").split(" ")[0];
+  if (announceToJoiner) await send(Number(u.chat_id), `👥 You and ${esc(b)} are paired. From tonight, your brief includes one match picked for both of your tastes and both watch windows. Send /duo off to stop.`);
+  else await send(Number(u.chat_id), `👥 You and ${esc(b)} are paired: one shared pick a night from now on.`);
+  await send(Number(inviter.chat_id), `👥 ${esc(a)} joined. You're paired: from tonight your brief includes one match picked for both of your tastes. Send /duo off to stop.`);
+}
+
+async function duoCommand(u: any, arg: string) {
+  if (arg === "off") {
+    const was = await unpair(u.id);
+    if (was) {
+      const p = await getUser(was);
+      if (p) await send(p.chat_id, `👥 ${esc(String(u.name).split(" ")[0])} ended your watch-together pairing.`);
+    }
+    return send(u.chat_id, was ? "Pairing ended. Your picks are yours alone again." : "You aren't paired with anyone.");
+  }
+  if (u.duo_partner) {
+    const p = await getUser(Number(u.duo_partner));
+    return send(u.chat_id, `👥 You're paired with ${esc(String(p?.name ?? "a friend").split(" ")[0])}. Each evening's brief includes one match for both of you. Send /duo off to stop.`);
+  }
+  const link = `https://t.me/${env.botUsername()}?start=${duoCode(u.id)}`;
+  return send(
+    u.chat_id,
+    `<b>Watch together</b>\nForward this link to a friend. When they join, you'll both get one extra pick a night that suits both of your tastes and both of your watch windows. Neither of you sees the other's memories.\n\n${link}`,
+    [[{ text: "Share with a friend", url: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("Let's find football worth watching together with Pocket Pundit")}` }]],
+  );
+}
+
 async function sendHelp(chatId: number, returning = false) {
   await send(
     chatId,
-    `${returning ? "Welcome back. " : ""}<b>What I can do</b>\n/picks: tonight's three\n/ask &lt;question&gt;: ask your memory, e.g. <i>/ask which leagues do I enjoy?</i>\n/card: your football taste as a shareable image\n/calendar: add your picks to Google or Apple Calendar\n/teach &lt;text&gt;: tell me a preference\n/me: your private dashboard\n/alerts on|off: "worth switching on" pings during matches\n/spoilers on|off: show scores in full-time messages\n/settings: time zone, brief time, watch window\n\nOr just type a preference, e.g. <i>I love late comebacks</i>.`,
+    `${returning ? "Welcome back. " : ""}<b>What I can do</b>\n/picks: tonight's three\n/ask &lt;question&gt;: ask your memory, e.g. <i>/ask which leagues do I enjoy?</i>\n/card: your football taste as a shareable image\n/calendar: add your picks to Google or Apple Calendar\n/duo: pair with a friend for one shared pick a night\n/export: download everything your pundit knows about you\n/teach &lt;text&gt;: tell me a preference\n/me: your private dashboard\n/alerts on|off: "worth switching on" pings during matches\n/spoilers on|off: show scores in full-time messages\n/settings: time zone, brief time, watch window\n\nOr just type a preference, e.g. <i>I love late comebacks</i>.`,
   );
 }
 
@@ -322,7 +362,7 @@ export async function handleUpdate(update: any) {
     const text: string = m.text ?? "";
     const [cmd, ...rest] = text.trim().split(/\s+/);
     const command = cmd?.startsWith("/") ? cmd.split("@")[0].toLowerCase() : null;
-    if (command === "/start") return startUser(m.from, m.chat.id);
+    if (command === "/start") return startUser(m.from, m.chat.id, rest[0]);
     const u = await getUser(m.from.id);
     if (!u) return startUser(m.from, m.chat.id);
     if (command === "/help") return sendHelp(u.chat_id);
@@ -353,6 +393,8 @@ export async function handleUpdate(update: any) {
       return send(u.chat_id, rows.map((p) => `<b>${p.slot}. ${esc(p.home)} v ${esc(p.away)}</b>\n${esc(p.competition)} · ${fmtLocalTime(new Date(p.kickoff).toISOString(), u.tz)} · ${Math.round(p.score)}/100${p.rating ? ` · you: ${p.rating}` : ""}`).join("\n\n"), [[{ text: "Open dashboard", url: dashboardUrl(u.id) }]]);
     }
     if (command === "/ask") return ask(u, rest.join(" "));
+    if (command === "/duo") return duoCommand(u as any, (rest[0] || "").toLowerCase());
+    if (command === "/export") return send(u.chat_id, "Everything your pundit knows about you, as one file: every memory with its Walrus blob link, plus the taste weights they add up to. It's yours to keep or take to another app.", [[{ text: "Download my memory (JSON)", url: `${env.appUrl()}/api/me/export?t=${encodeURIComponent(dashboardUrl(u.id).split("?t=")[1])}` }]]);
     if (command === "/card") return sendCard(u);
     if (command === "/calendar") return sendCalendar(u);
     if (command === "/teach") return teach(u, rest.join(" "));
@@ -420,6 +462,9 @@ export async function handleUpdate(update: any) {
       await q(`update users set onboard_step = 'done' where id = $1`, [u.id]);
       await edit(chatId, cb.message.message_id, sel.length ? `Saved ${sel.length} competition${sel.length === 1 ? "" : "s"} to your memory.` : "No problem. I'll learn from your ratings.");
       if (fresh.onboard_step !== "done") {
+        const inviterId = await takeInvite(u.id);
+        const inviterRow = inviterId ? await getUser(inviterId) : null;
+        if (inviterRow) await linkDuo({ ...fresh, onboard_step: "done" } as any, inviterRow, false);
         await send(chatId, `All set. Picks arrive at ${hh(fresh.brief_hour)} (${esc(fresh.tz)}). Here's tonight, from a standing start:`);
         return sendBrief(fresh);
       }

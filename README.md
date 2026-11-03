@@ -23,7 +23,8 @@ Football fans who love the game but can't watch everything. Many live in Asia, w
 | Missing kick-off | A reminder about 20 minutes before each pick, plus a calendar feed that fills itself |
 | Spoilers in every app | Full-time messages hide the score until you've answered |
 | Not knowing which highlights matter | One spoiler-free line: last night's match most worth the highlights |
-| Explaining your taste to every app | It learns from your taps. `/ask` shows what it knows, and `/card` turns it into an image you can share |
+| Explaining your taste to every app | It learns from your taps. `/ask` shows what it knows, `/card` turns it into an image you can share, and `/export` hands you all of it |
+| Agreeing with a friend on what to watch | `/duo` adds one shared pick a night for both of you |
 
 Memory tunes every one of those: the leagues you enjoy, the styles you love or bail on (late goals, comebacks, cagey 0–0s), and the kick-off times you really stay up for.
 
@@ -162,6 +163,7 @@ flowchart LR
 | Privacy | Seal-encrypted on Walrus. Namespaces are HMAC-derived, so no user id appears on-chain. Credential-shaped strings are redacted before any write ([lib/memory.ts](lib/memory.ts)) |
 | Chain reads | **Tatum Sui gateway, native gRPC** (`sui.rpc.v2` protos vendored from MystenLabs/sui-apis): `LedgerService/GetServiceInfo`; `LedgerService/GetObject` (the MemWalAccount: owner, delegate keys, active); `StateService/ListOwnedObjects` (every Walrus `Blob` object the account owns, with `storage.end_epoch`); `LedgerService/GetTransaction` (checkpoint time of a lock's certification). GraphQL for delegate-key events ([lib/tatum.ts](lib/tatum.ts)) |
 | Proof | Each stored memory's base64url blob id is converted to the on-chain u256 and matched to its Sui `Blob` object. The dashboard shows the Sui object and expiry epoch next to each memory; `npm run verify` writes [docs/PROOF.md](docs/PROOF.md) |
+| Portability | Memories follow a documented sentence + tags format ([docs/MEMORY-FORMAT.md](docs/MEMORY-FORMAT.md)); `/export` downloads a taste passport any app can rebuild the same taste from |
 | Blind A/B + locks | Two memory picks and one memory-off control, shuffled, with neutral reasons only. The brief is locked on Walrus before kick-off, with the control sealed by a commit that is revealed after the last full time ([lib/lock.ts](lib/lock.ts)) |
 
 ## Bot commands
@@ -173,6 +175,8 @@ flowchart LR
 | `/ask <question>` | Ask your memory, e.g. *which leagues do I enjoy?* |
 | `/card` | Your football taste as a shareable image |
 | `/calendar` | A private feed for Google or Apple Calendar, with a 20-minute reminder on each pick |
+| `/duo` | Pair with a friend: one extra pick a night that suits both tastes and both watch windows (neither sees the other's memories) |
+| `/export` | Download your taste passport: every memory with its Walrus blob link, plus the learned weights |
 | `/teach <text>` | Save a preference, e.g. *I love late comebacks* or *no matches after 2am on weekdays* (plain messages work too) |
 | `/me` | Your private dashboard: picks with cited memories, learned weights, memory wall, A/B |
 | `/alerts on\|off` | "Worth switching on" pings during matches |

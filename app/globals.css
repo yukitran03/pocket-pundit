@@ -118,6 +118,8 @@
   h1, h2, h3, h4 { text-wrap: balance; }
   p { text-wrap: pretty; }
   summary { cursor: pointer; }
+  /* Tailwind v4 gives buttons the default arrow; anything you can press should say so. */
+  button:not(:disabled), [role="button"] { cursor: pointer; }
   summary::-webkit-details-marker { display: none; }
   input, select, textarea, button { font: inherit; color: inherit; }
 }
@@ -344,3 +346,63 @@ html.lenis, html.lenis body { scroll-behavior: auto; }
   line-height: 0.88;
   font-size: clamp(3rem, 1.2rem + 5.6vw, 6.5rem);
 }
+
+/* ------------------------------------------------------------------ versus screen (components/match) */
+.vs-panel {
+  background: var(--ink-0);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 280ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.vs-home {
+  clip-path: polygon(0 0, 57% 0, 43% 100%, 0 100%);
+  background: linear-gradient(115deg, rgb(var(--home) / var(--home-a, 0.46)), rgb(var(--home) / calc(var(--home-a, 0.46) * 0.26)) 62%, transparent), var(--ink-1);
+}
+.vs-away {
+  clip-path: polygon(57% 0, 100% 0, 100% 100%, 43% 100%);
+  background: linear-gradient(295deg, rgb(var(--away) / var(--away-a, 0.46)), rgb(var(--away) / calc(var(--away-a, 0.46) * 0.26)) 62%, transparent), var(--ink-1);
+}
+/* Each name is sized from its own column and its longest word: long words step down, never overflow. */
+.vs-team { container-type: inline-size; }
+.vs-name { font-size: min(var(--max, 1.65rem), calc(100cqi / (var(--chars, 8) * 0.5))); }
+/* Crests float a little above the panel as it tilts (set from JS as px offsets). */
+.vs-crest { transform: translate3d(var(--px, 0px), var(--py, 0px), 0); transition: transform 280ms cubic-bezier(0.2, 0.7, 0.2, 1); filter: drop-shadow(0 8px 14px rgb(0 0 0 / 0.45)); }
+.vs-plate { display: inline-grid; place-items: center; transform: skewX(-12deg); border-radius: 4px; background: var(--chalk); color: var(--ink-0); }
+.vs-plate > * { transform: skewX(12deg); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .vs[data-vs="wait"] .vs-emblem { opacity: 0; }
+  .vs[data-vs="in"] .vs-emblem { animation: vs-slam 640ms cubic-bezier(0.2, 0.9, 0.25, 1.15) 140ms both; }
+  .vs[data-vs="in"] .crest-shine { animation: crest-shine 1100ms ease-out 420ms 1 both; }
+  .vs-panel:hover .crest-shine { animation: crest-shine-hover 900ms ease-out 1 both; }
+}
+@keyframes vs-slam {
+  0% { opacity: 0; transform: skewX(-12deg) scale(2.2) rotate(-7deg); }
+  55% { opacity: 1; transform: skewX(-12deg) scale(0.9) rotate(0deg); }
+  78% { transform: skewX(-12deg) scale(1.05); }
+  100% { opacity: 1; transform: skewX(-12deg) scale(1); }
+}
+@keyframes crest-shine {
+  0% { opacity: 0; transform: skewX(-18deg) translateX(0); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: skewX(-18deg) translateX(92px); }
+}
+@keyframes crest-shine-hover {
+  0% { opacity: 0; transform: skewX(-18deg) translateX(0); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: skewX(-18deg) translateX(92px); }
+}
+
+/* Compact VS rows arrive one after another (slight overshoot); stat bars grow from the centre line as they
+   scroll in, with no bounce on data. Both only with motion allowed; the bars only where view timelines exist. */
+@media (prefers-reduced-motion: no-preference) {
+  .stagger[data-stagger="wait"] > li { opacity: 0; transform: translateY(12px); }
+  .stagger[data-stagger="in"] > li { animation: row-in 400ms cubic-bezier(0.34, 1.32, 0.64, 1) calc(var(--i, 0) * 60ms) both; }
+  @supports (animation-timeline: view()) {
+    .h2h-fill { animation: h2h-grow linear both; animation-timeline: view(); animation-range: entry 5% cover 35%; }
+  }
+}
+.h2h-l { transform-origin: right center; }
+.h2h-r { transform-origin: left center; }
+@keyframes row-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes h2h-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }

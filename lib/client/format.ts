@@ -144,3 +144,10 @@ export function tidyReasons(reasons: string[], shown: { competition: string }): 
       return r.length > 0 && !restates;
     });
 }
+
+/** 1 → "1st", 63 → "63rd", 112 → "112th". */
+export function ordinal(n: number) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = Math.abs(Math.round(n)) % 100;
+  return `${Math.round(n)}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
+}

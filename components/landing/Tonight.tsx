@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReplayMatch, TonightMatch, TonightResponse } from "@/lib/contract";
 import { BRAND } from "@/lib/brand";
 import { getTonight, type DataSource } from "@/lib/client/api";
 import { useApi } from "@/lib/client/useApi";
 import { useNow } from "@/lib/client/useNow";
-import { fmtAgo, fmtDay, fmtInt, fmtTime, fmtUntil, tidyReasons, tzLabel, visitorTz } from "@/lib/client/format";
+import { fmtAgo, fmtDay, fmtInt, fmtTime, fmtUntil, ordinal, tidyReasons, tzLabel, visitorTz } from "@/lib/client/format";
 import { Meter } from "@/components/pick/PickCard";
 import { BurnReveal } from "@/components/fx/BurnReveal";
+import { HeadToHead, VsPanel, WorthRing } from "@/components/match/Vs";
+import { TeamCrest } from "@/components/match/TeamCrest";
 import { EmptyState, Skeleton } from "@/components/site/States";
 import { IconAlert, IconChevron, IconTelegram } from "@/components/site/Icons";
 
@@ -97,27 +99,26 @@ const SHOW = 5;
 
 function TonightList({ matches, tz, now, scanned }: { matches: TonightMatch[]; tz: string; now: number | null; scanned: number }) {
   const [all, setAll] = useState(false);
+  const list = useStagger();
   if (!matches.length)
     return <EmptyState title="A quiet night">Nothing worth flagging kicks off in the next 12 hours. Check back tomorrow evening.</EmptyState>;
-  const shown = all ? matches : matches.slice(0, SHOW);
+  const [top, ...rest] = matches;
+  const others = all ? rest : rest.slice(0, SHOW - 1);
   return (
-    <div>
-      <ol className="overflow-hidden rounded-[var(--radius-card)] bg-ink-1 hairline">
-        <li aria-hidden className="hidden grid-cols-[2rem_6.5rem_minmax(0,1fr)_10rem] gap-x-5 border-b border-[var(--line)] px-5 py-2.5 text-xs text-chalk-3 md:grid">
-          <span>#</span>
-          <span>Kick-off</span>
-          <span>Match</span>
-          <span>Worth watching</span>
-        </li>
-        {shown.map((m, i) => (
-          <TonightRow key={m.matchId} m={m} rank={i + 1} tz={tz} now={now} />
-        ))}
-      </ol>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-chalk-3">
+    <div className="space-y-4">
+      <FeaturedVs m={top} tz={tz} now={now} />
+      {others.length ? (
+        <ol ref={list} className="stagger overflow-hidden rounded-[var(--radius-card)] bg-ink-1 hairline" aria-label="More matches tonight">
+          {others.map((m, i) => (
+            <VsRow key={m.matchId} m={m} rank={i + 2} tz={tz} now={now} index={i} />
+          ))}
+        </ol>
+      ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-chalk-3">
         <p>
           {fmtInt(scanned)} fixtures checked. Scores are for a neutral fan; yours would use your memory.
         </p>
-        {matches.length > SHOW ? (
+        {rest.length > SHOW - 1 ? (
           <button type="button" className="btn btn-quiet !min-h-[32px] !text-xs" onClick={() => setAll((v) => !v)} aria-expanded={all}>
             {all ? "Show the top 5" : `Show all ${matches.length}`}
             <IconChevron size={14} className={`transition-transform ${all ? "-rotate-90" : "rotate-90"}`} />
@@ -128,53 +129,116 @@ function TonightList({ matches, tz, now, scanned }: { matches: TonightMatch[]; t
   );
 }
 
-function TonightRow({ m, rank, tz, now }: { m: TonightMatch; rank: number; tz: string; now: number | null }) {
-  const live = m.status === "live";
-  const until = now !== null && !live ? fmtUntil(m.kickoff, now) : null;
+/** Rows arrive one after another the first time the list is on screen (CSS does the motion). */
+function useStagger() {
+  const ref = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    el.dataset.stagger = "wait";
+    const io = new IntersectionObserver((es) => {
+      if (es.some((e) => e.isIntersecting)) {
+        el.dataset.stagger = "in";
+        io.disconnect();
+      }
+    }, { threshold: 0.15 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return ref;
+}
+
+/** Kick-off for the VS column: the time and "in 2 h", or a pulsing LIVE with the minute. */
+function KickoffCell({ m, tz, now, big = false }: { m: TonightMatch; tz: string; now: number | null; big?: boolean }) {
+  if (m.status === "live")
+    return (
+      <span role="status" aria-atomic="true" className="flex flex-col items-center gap-1">
+        <span className="sr-only">{m.minute !== null ? `Live, ${ordinal(m.minute)} minute` : "Live now"}</span>
+        <span aria-hidden className={`font-display font-extrabold leading-none text-flare tnum ${big ? "text-[1.7rem]" : "text-[1.35rem]"}`}>{m.minute !== null ? `${m.minute}'` : ""}</span>
+        <span aria-hidden className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-flare">
+          <span className="live-dot !h-1.5 !w-1.5" /> Live
+        </span>
+      </span>
+    );
+  const until = now !== null ? fmtUntil(m.kickoff, now) : null;
+  return (
+    <span className="flex flex-col items-center gap-0.5">
+      <time dateTime={m.kickoff} className={`font-display font-extrabold leading-none tnum ${big ? "text-[1.7rem]" : "text-[1.3rem]"}`}>{fmtTime(m.kickoff, tz)}</time>
+      <span className="text-xs text-chalk-2">{until ?? fmtDay(m.kickoff, tz)}</span>
+    </span>
+  );
+}
+
+/** Tonight's top match as a full versus screen: crests, names, VS, kick-off, ring, reasons and form. */
+function FeaturedVs({ m, tz, now }: { m: TonightMatch; tz: string; now: number | null }) {
+  const reasons = tidyReasons(m.reasons, m).slice(0, 2);
+  const id = `top-${m.matchId}`;
+  return (
+    <article className="card overflow-hidden p-4 sm:p-6" aria-labelledby={id}>
+      <h4 id={id} className="sr-only">
+        Top match tonight: {m.home} versus {m.away}, {m.competition}
+        {m.status === "live" ? `, live, ${m.minute ?? ""} minutes played` : `, kick-off ${fmtTime(m.kickoff, tz)}`}
+      </h4>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="chip !text-chalk" style={{ boxShadow: "inset 0 0 0 1px rgb(57 135 229 / 0.55)" }}>Top match tonight</span>
+        <span className="chip !h-auto min-h-6 !whitespace-normal py-0.5">{m.competition}</span>
+      </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-stretch lg:gap-8">
+        <VsPanel home={m.home} away={m.away} size="lg" fill center={<KickoffCell m={m} tz={tz} now={now} big />} />
+        <div className="min-w-0">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-chalk-3">Ranked by your pundit with no personal memory.</p>
+            <WorthRing value={m.score} tone="control" size={76} />
+          </div>
+          {reasons.length ? (
+            <ul className="mt-4 space-y-1.5 text-[0.95rem] text-chalk-2" aria-label="Why">
+              {reasons.map((r, i) => (
+                <li key={i} className="flex gap-2.5">
+                  <span aria-hidden className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-steel" />
+                  <span>{r}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <HeadToHead form={m.form} home={m.home} away={m.away} className="mt-5 border-t border-[var(--line-faint)] pt-4" />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** Compact versus row: crest, name, VS, name, crest, then kick-off and the score. */
+function VsRow({ m, rank, tz, now, index = 0 }: { m: TonightMatch; rank: number; tz: string; now: number | null; index?: number }) {
   const reasons = tidyReasons(m.reasons, m).slice(0, 2);
   return (
-    <li className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-x-4 gap-y-3 border-b border-[var(--line-faint)] px-4 py-4 last:border-0 sm:px-5 md:grid-cols-[2rem_6.5rem_minmax(0,1fr)_10rem] md:gap-x-5 md:py-4.5">
-      <span aria-hidden className="hidden pt-1 font-display text-xl font-extrabold leading-none text-chalk-4 md:block">{rank}</span>
-
-      <div className="min-w-0">
-        {live ? (
-          <>
-            <p className="font-display text-[1.6rem] font-extrabold leading-none text-flare tnum">{m.minute ?? ""}{m.minute !== null ? "'" : ""}</p>
-            <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-flare">
-              <span className="live-dot !h-1.5 !w-1.5" aria-hidden /> Live
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="font-display text-[1.6rem] font-extrabold leading-none tnum">
-              <time dateTime={m.kickoff}>{fmtTime(m.kickoff, tz)}</time>
-            </p>
-            <p className="mt-1.5 text-xs text-chalk-3">{until ?? fmtDay(m.kickoff, tz)}</p>
-          </>
-        )}
-      </div>
-
-      <div className="min-w-0">
-        <p className="font-semibold leading-snug text-chalk">
-          <span className="sr-only">{rank}. </span>
-          {m.home} <span className="font-normal text-chalk-4">v</span> {m.away}
-          {live ? <span className="sr-only">, live, {m.minute ?? ""} minutes played</span> : null}
+    <li style={{ "--i": index } as React.CSSProperties} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 border-b border-[var(--line-faint)] px-4 py-4 last:border-0 sm:px-5 md:grid-cols-[1.5rem_minmax(0,1fr)_6.5rem_9.5rem] md:gap-x-5">
+      <span aria-hidden className="hidden font-display text-xl font-extrabold leading-none text-chalk-4 md:block">{rank}</span>
+      <div className="col-span-2 min-w-0 md:col-span-1">
+        <p className="sr-only">
+          {rank}. {m.home} versus {m.away}, {m.competition}
+          {m.status === "live" ? `, live, ${m.minute ?? ""} minutes played` : ""}
         </p>
-        <p className="mt-0.5 truncate text-sm text-chalk-3">{m.competition}</p>
-        {reasons.length ? (
-          <ul className="mt-2 space-y-1 text-sm text-chalk-2" aria-label="Why">
-            {reasons.map((r, i) => (
-              <li key={i} className="flex gap-2">
-                <span aria-hidden className="mt-[0.55em] h-1 w-1 shrink-0 rounded-full bg-steel" />
-                <span className="md:truncate" title={r}>{r}</span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        <div aria-hidden className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2.5 sm:gap-3">
+          <span className="flex min-w-0 items-center justify-end gap-2 text-right">
+            <span className="min-w-0 font-semibold leading-tight text-chalk [text-wrap:balance]">{m.home}</span>
+            <TeamCrest name={m.home} size={28} />
+          </span>
+          <span className="vs-plate h-6 px-1.5"><span className="font-display text-[0.95rem] font-extrabold leading-none">VS</span></span>
+          <span className="flex min-w-0 items-center gap-2">
+            <TeamCrest name={m.away} size={28} />
+            <span className="min-w-0 font-semibold leading-tight text-chalk [text-wrap:balance]">{m.away}</span>
+          </span>
+        </div>
+        <p className="mt-2 truncate text-center text-xs text-chalk-3" title={reasons.join(" · ")}>
+          <span className="text-chalk-2">{m.competition}</span>
+          {reasons[0] ? <span className="hidden sm:inline"> · {reasons[0]}</span> : null}
+        </p>
       </div>
-
-      <div className="col-span-2 md:col-span-1 md:pt-0.5">
-        <Meter value={m.score} label="Worth watching" tone="control" compact labelClassName="md:sr-only" />
+      <div className="md:text-center">
+        <KickoffCell m={m} tz={tz} now={now} />
+      </div>
+      <div className="justify-self-end md:justify-self-stretch">
+        <Meter value={m.score} label="Worth watching" tone="control" compact labelClassName="sr-only" className="w-28 md:w-auto" />
       </div>
     </li>
   );
@@ -182,15 +246,21 @@ function TonightRow({ m, rank, tz, now }: { m: TonightMatch; rank: number; tz: s
 
 function ListSkeleton() {
   return (
-    <div className="overflow-hidden rounded-[var(--radius-card)] bg-ink-1 hairline" role="status" aria-label="Loading tonight's matches">
-      {Array.from({ length: SHOW }, (_, i) => (
-        <div key={i} className="grid grid-cols-[4.25rem_1fr] gap-4 border-b border-[var(--line-faint)] px-5 py-5 last:border-0 md:grid-cols-[2rem_6.5rem_1fr_10rem]">
-          <Skeleton className="hidden h-5 w-4 md:block" />
-          <Skeleton className="h-7 w-16" />
-          <div className="space-y-2"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-1/3" /><Skeleton className="h-3 w-2/3" /></div>
-          <Skeleton className="col-span-2 h-6 w-full md:col-span-1" />
-        </div>
-      ))}
+    <div className="space-y-4" role="status" aria-label="Loading tonight's matches">
+      <div className="card grid gap-6 p-4 sm:p-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <Skeleton className="h-[220px] w-full !rounded-[18px] sm:h-[260px]" />
+        <div className="space-y-3"><Skeleton className="ml-auto h-[76px] w-[76px] !rounded-full" /><Skeleton className="h-4 w-4/5" /><Skeleton className="h-4 w-3/5" /><Skeleton className="h-24 w-full" /></div>
+      </div>
+      <div className="overflow-hidden rounded-[var(--radius-card)] bg-ink-1 hairline">
+        {Array.from({ length: SHOW - 1 }, (_, i) => (
+          <div key={i} className="grid grid-cols-[1fr_auto] items-center gap-4 border-b border-[var(--line-faint)] px-5 py-5 last:border-0 md:grid-cols-[1.5rem_1fr_6.5rem_9.5rem]">
+            <Skeleton className="hidden h-5 w-4 md:block" />
+            <Skeleton className="col-span-2 h-8 w-full md:col-span-1" />
+            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-5 w-28 md:w-full" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -226,10 +296,8 @@ function ReplayCard({ r, tz, now }: { r: ReplayMatch; tz: string; now: number | 
         {r.competition} · {fmtDay(r.kickoff, tz)} {fmtTime(r.kickoff, tz)}
         {now ? <span className="sr-only">, {fmtAgo(r.kickoff, now)}</span> : null}
       </p>
-      <p className="mt-2 font-display text-[1.6rem] font-extrabold leading-[0.95]">
-        <span className="block">{r.home}<span className="ml-2 text-[0.6em] text-chalk-4" aria-hidden>v</span><span className="sr-only"> versus </span></span>
-        <span className="block">{r.away}</span>
-      </p>
+      <p className="sr-only">{r.home} versus {r.away}</p>
+      <VsPanel home={r.home} away={r.away} className="mt-3" center={<span className="text-xs text-chalk-3">Full time</span>} />
       <Meter className="mt-4" value={r.drama} label="Drama" compact />
       {r.vibe.length ? (
         <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="What it was like">

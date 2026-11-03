@@ -11,6 +11,8 @@ import type {
   ArmStats,
   Cite,
   Drama,
+  FormLine,
+  MatchForm,
   MeResponse,
   MemoryKind,
   MemoryRow,
@@ -85,6 +87,10 @@ const cite = (...ids: string[]): Cite[] =>
     return { blobId: m.blobId, text: m.text };
   });
 
+// ---------------------------------------------------------------- form (last 5 in the feed)
+const fl = (wins: number, draws: number, losses: number, goalsFor: number, goalsAgainst: number): FormLine => ({ played: wins + draws + losses, wins, draws, losses, goalsFor, goalsAgainst });
+const vs = (home: FormLine | null, away: FormLine | null): MatchForm => ({ home, away });
+
 // ---------------------------------------------------------------- picks
 const drama = (score: number, goals: number, lateGoals: number, leadChanges: number, attempts: number, cards: number, comeback: boolean, tags: string[]): Drama => ({
   score, goals, lateGoals, leadChanges, attempts, cards, comeback, tags,
@@ -114,6 +120,7 @@ export const FIXTURE_TODAY: Pick[] = [
     cites: cite("m19", "m07", "m06"),
     rating: null, drama: null,
     lock: { blobId: BRIEF_LOCK, lockedAt: BRIEF_LOCKED_AT, minutesBeforeKickoff: 464 },
+    form: vs(fl(3, 1, 1, 11, 6), fl(4, 0, 1, 13, 5)),
   }),
   pick({
     briefDate: "2026-11-03", slot: 2, arm: null, kickoff: "2026-11-03T20:00:00Z",
@@ -128,6 +135,7 @@ export const FIXTURE_TODAY: Pick[] = [
     cites: [],
     rating: null, drama: null,
     lock: { blobId: BRIEF_LOCK, lockedAt: BRIEF_LOCKED_AT, minutesBeforeKickoff: 599 },
+    form: vs(fl(4, 1, 0, 12, 4), fl(2, 2, 1, 7, 5)),
   }),
   pick({
     briefDate: "2026-11-03", slot: 3, arm: null, kickoff: "2026-11-03T12:00:00Z",
@@ -142,6 +150,7 @@ export const FIXTURE_TODAY: Pick[] = [
     cites: cite("m02", "m03", "m24"),
     rating: null, drama: null,
     lock: { blobId: BRIEF_LOCK, lockedAt: BRIEF_LOCKED_AT, minutesBeforeKickoff: 119 },
+    form: vs(fl(3, 0, 2, 12, 8), fl(2, 1, 2, 10, 9)),
   }),
 ];
 
@@ -149,7 +158,7 @@ export const FIXTURE_HISTORY: Pick[] = [
   // Day 6: Mon 2 Nov
   pick({ briefDate: "2026-11-02", slot: 1, arm: "memory", kickoff: "2026-11-02T15:00:00Z", competition: "AFC Champions League Elite", stage: "League stage · Matchday 4", home: "Al-Sadd", away: "Al-Hilal", homeScore: 2, awayScore: 3, score: 82,
     reasons: ["22:00 your time, mid-window", "Al-Hilal have scored after 80' in 4 of 5 games", "You loved Al-Ittihad 3–1 at the same hour"],
-    cites: cite("m17", "m19"), rating: "loved", drama: drama(83, 5, 2, 2, 29, 3, true, ["late-goals", "comeback", "high-scoring"]) }),
+    cites: cite("m17", "m19"), rating: "loved", drama: drama(83, 5, 2, 2, 29, 3, true, ["late-goals", "comeback", "high-scoring"]), form: vs(fl(2, 1, 2, 9, 8), fl(4, 1, 0, 14, 4)) }),
   pick({ briefDate: "2026-11-02", slot: 2, arm: "control", kickoff: "2026-11-02T20:00:00Z", competition: "Premier League", stage: "Matchday 10", home: "Fulham", away: "Everton", homeScore: 1, awayScore: 1, score: 66,
     reasons: ["Monday night Premier League", "Both sides unbeaten in three"],
     cites: [], rating: "skipped", drama: drama(44, 2, 0, 0, 21, 4, false, []) }),
@@ -159,7 +168,7 @@ export const FIXTURE_HISTORY: Pick[] = [
   // Day 5: Sun 1 Nov
   pick({ briefDate: "2026-11-01", slot: 1, arm: "memory", kickoff: "2026-11-01T13:30:00Z", competition: "Eredivisie", stage: "Matchday 11", home: "PSV", away: "Ajax", homeScore: 3, awayScore: 3, score: 86,
     reasons: ["20:30 your time, prime window", "De Topper: 3.4 goals per game in the last 10", "You rate open games highly"],
-    cites: cite("m20", "m23"), rating: "loved", drama: drama(91, 6, 2, 4, 34, 4, true, ["late-goals", "high-scoring", "comeback"]) }),
+    cites: cite("m20", "m23"), rating: "loved", drama: drama(91, 6, 2, 4, 34, 4, true, ["late-goals", "high-scoring", "comeback"]), form: vs(fl(4, 0, 1, 15, 6), fl(3, 1, 1, 11, 7)) }),
   pick({ briefDate: "2026-11-01", slot: 2, arm: "memory", kickoff: "2026-11-01T14:00:00Z", competition: "Premier League", stage: "Matchday 10", home: "Aston Villa", away: "Tottenham Hotspur", homeScore: 2, awayScore: 2, score: 71,
     reasons: ["21:00 your time", "Both teams have scored in 8 of their last 9 meetings"],
     cites: cite("m11"), rating: "fine", drama: drama(64, 4, 1, 1, 27, 3, false, ["high-scoring"]) }),
@@ -382,5 +391,15 @@ export function fixtureTonight(tz: string, now = Date.now()): TonightResponse {
     { matchId: "smp-r4", kickoff: ago(17), competition: "AFC Champions League Elite", home: "Urawa Red Diamonds", away: "Ulsan HD", drama: 71, vibe: ["goals", "end to end"], homeScore: 2, awayScore: 2 },
     { matchId: "smp-r5", kickoff: ago(20), competition: "Ligue 1", home: "Lyon", away: "Lille", drama: 58, vibe: ["tense"], homeScore: 1, awayScore: 1 },
   ];
+  const FORM: Record<string, MatchForm> = {
+    "smp-t1": vs(fl(3, 0, 2, 12, 8), fl(2, 1, 2, 10, 9)),
+    "smp-t2": vs(fl(3, 1, 1, 9, 5), fl(2, 2, 1, 6, 5)),
+    "smp-t3": vs(fl(3, 1, 1, 11, 6), fl(4, 0, 1, 13, 5)),
+    "smp-t4": vs(fl(4, 1, 0, 12, 4), fl(2, 2, 1, 7, 5)),
+    "smp-t5": vs(fl(3, 1, 1, 13, 7), fl(3, 0, 2, 10, 9)),
+    "smp-t6": vs(fl(4, 0, 1, 14, 6), fl(4, 1, 0, 12, 3)),
+    "smp-t7": vs(fl(2, 1, 2, 8, 8), fl(3, 0, 2, 9, 7)),
+  };
+  for (const m of tonight) m.form = FORM[m.matchId] ?? null;
   return { tz, scanned: 412, tonight, replays, updatedAt: new Date(now).toISOString() };
 }

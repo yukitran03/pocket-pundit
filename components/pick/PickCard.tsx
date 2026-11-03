@@ -4,10 +4,12 @@ import { walruscanBlob } from "@/lib/client/chain";
 import { RATING_META } from "@/lib/client/kinds";
 import { IconChevron, IconExternal, IconLock } from "@/components/site/Icons";
 import { UntilKickoff } from "./RelTime";
+import { HeadToHead, VsPanel, WorthRing } from "@/components/match/Vs";
 
 /**
- * A pick as the product shows it. Reading order: who is playing, when, how much it's worth watching,
- * why, then (folded) the memories behind it, and a quiet status row last.
+ * A pick as the product shows it, presented like a football game's versus screen. Reading order:
+ * competition and worth-watching ring, the matchup (crests, names, VS or score, kick-off), recent form
+ * head to head, why it was picked, then (folded) the memories behind it, and a quiet status row last.
  * Server-renderable: the memories fold with <details>; only the "in 2 h" hint is a client island.
  * While a pick is unrated its arm is hidden (null) and the memories stay folded, so looking at the
  * dashboard does not unblind the A/B test.
@@ -25,38 +27,42 @@ export function PickCard({ pick, tz, openCites = false, sampleLabel, showTz = fa
       ) : null}
 
       <div className="relative flex flex-1 flex-col p-5">
-        {/* 1. Who */}
-        <h3 id={titleId} className="font-display text-[1.95rem] font-extrabold leading-[0.95] tracking-[-0.005em]" style={{ fontVariationSettings: '"opsz" 72' }}>
-          {hasScore ? (
-            <span className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1">
-              <TeamScore name={pick.home} score={pick.homeScore!} win={pick.homeScore! > pick.awayScore!} />
-              <TeamScore name={pick.away} score={pick.awayScore!} win={pick.awayScore! > pick.homeScore!} />
+        {/* 1. What, and how much it's worth watching */}
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="min-w-0">
+            <span className="chip max-w-full !h-auto min-h-6 !whitespace-normal py-0.5 !text-chalk-2" title={pick.stage ? `${pick.competition} · ${pick.stage}` : pick.competition}>
+              {pick.competition}
             </span>
-          ) : (
-            <>
-              <span className="block">
-                {pick.home}
-                <span className="ml-2 text-[0.6em] text-chalk-4" aria-hidden>v</span>
-                <span className="sr-only"> versus </span>
-              </span>
-              <span className="block">{pick.away}</span>
-            </>
-          )}
-        </h3>
-
-        {/* 2. When, and in what */}
-        <div className="mt-4">
-          <p className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-            <time dateTime={pick.kickoff} className="font-display text-[1.6rem] font-extrabold leading-none tnum">{fmtTime(pick.kickoff, tz)}</time>
-            <StatusHint pick={pick} day={`${fmtDay(pick.kickoff, tz)}${showTz ? `, ${tzLabel(tz)} time` : ""}`} />
           </p>
-          <p className="mt-1.5 truncate text-sm text-chalk-3" title={pick.stage ? `${pick.competition} · ${pick.stage}` : pick.competition}>
-            {pick.competition}
-          </p>
+          <WorthRing value={pick.score} tone={tone} size={56} />
         </div>
 
-        {/* 3. How much */}
-        <Meter className="mt-5" value={pick.score} label="Worth watching" tone={tone} />
+        {/* 2. Who, and when: the versus screen */}
+        <h3 className="sr-only" id={titleId}>
+          {pick.home} versus {pick.away}
+          {hasScore ? `, ${pick.homeScore}–${pick.awayScore}` : ""}
+        </h3>
+        <VsPanel
+          home={pick.home}
+          away={pick.away}
+          score={hasScore ? { home: pick.homeScore!, away: pick.awayScore! } : null}
+          center={
+            <span className="flex flex-col items-center gap-0.5">
+              {!hasScore || pick.status !== "finished" ? (
+                <time dateTime={pick.kickoff} className="font-display text-[1.3rem] font-extrabold leading-none tnum">{fmtTime(pick.kickoff, tz)}</time>
+              ) : null}
+              <StatusHint pick={pick} />
+            </span>
+          }
+        />
+        <p className="mt-2 text-center text-xs text-chalk-3">
+          {fmtDay(pick.kickoff, tz)}
+          {showTz ? `, ${tzLabel(tz)} time` : ""}
+          {pick.stage ? ` · ${pick.stage}` : ""}
+        </p>
+
+        {/* 3. Recent form, head to head (only when the feed has it) */}
+        <HeadToHead form={pick.form} home={pick.home} away={pick.away} className="mt-5 border-t border-[var(--line-faint)] pt-4" />
 
         {/* 4. Why */}
         {reasons.length ? (
@@ -87,27 +93,17 @@ export function PickCard({ pick, tz, openCites = false, sampleLabel, showTz = fa
   );
 }
 
-function TeamScore({ name, score, win }: { name: string; score: number; win: boolean }) {
-  return (
-    <>
-      <span className={`min-w-0 ${win ? "text-chalk" : "text-chalk-2"}`}>{name}</span>
-      <span className={`text-right tnum ${win ? "text-chalk" : "text-chalk-3"}`}>
-        {score}
-      </span>
-    </>
-  );
-}
-
-/** Next to the kick-off time: "Live now", "Full time · Mon 2 Nov", or "in 2 h" (falling back to the day). */
-function StatusHint({ pick, day }: { pick: Pick; day: string }) {
+/** Under the kick-off time in the VS column: "LIVE", "Full time", or "in 2 h" (nothing when the day says enough). */
+function StatusHint({ pick }: { pick: Pick }) {
   if (pick.status === "live")
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-flare">
-        <span className="live-dot !h-1.5 !w-1.5" aria-hidden /> Live now
+      <span role="status" aria-atomic="true" className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-flare">
+        <span className="live-dot !h-1.5 !w-1.5" aria-hidden /> <span aria-hidden>Live</span>
+        <span className="sr-only">Live now</span>
       </span>
     );
-  if (pick.status === "finished") return <span className="text-sm text-chalk-3">Full time · {day}</span>;
-  return <UntilKickoff iso={pick.kickoff} fallback={day} className="text-sm text-chalk-2" />;
+  if (pick.status === "finished") return <span className="text-xs text-chalk-3">Full time</span>;
+  return <UntilKickoff iso={pick.kickoff} className="text-xs text-chalk-2" />;
 }
 
 const TONE_FILL = { memory: "var(--flare)", control: "var(--steel)", neutral: "var(--chalk-2)" } as const;

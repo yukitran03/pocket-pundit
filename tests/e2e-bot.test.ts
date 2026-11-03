@@ -349,3 +349,73 @@ describe("commands", () => {
     expect(all).not.toMatch(/—/);
   });
 });
+
+describe("watch together and taste passport", () => {
+  const F = { id: 515151, first_name: "Friend", username: "friend_viewer" };
+  const fmsg = (text: string) => ({ update_id: ++upd, message: { message_id: upd, chat: { id: F.id, type: "private" }, from: F, text } });
+  const fcb = (data: string) => ({ update_id: ++upd, callback_query: { id: `cb${upd}`, from: F, data, message: { message_id: 1, chat: { id: F.id } } } });
+
+  it("/duo gives an invite link; a friend who joins through it is paired after setup and both are told", async () => {
+    let m = world.mark();
+    await L.telegram.handleUpdate(msg("/duo"));
+    const t = lastText(m);
+    const code = /start=(duo_[A-Za-z0-9_-]+)/.exec(t)?.[1];
+    expect(code).toBeTruthy();
+    m = world.mark();
+    await L.telegram.handleUpdate(fmsg(`/start ${code}`));
+    expect(lastText(m)).toMatch(/Test invited you to watch together/);
+    await L.telegram.handleUpdate(fcb(`tz:${TZ}`));
+    await L.telegram.handleUpdate(fcb("bh:18"));
+    await L.telegram.handleUpdate(fcb("win:12-36"));
+    m = world.mark();
+    await L.telegram.handleUpdate(fcb("lg:done"));
+    const told = world.since(m, "sendMessage").map((c) => `${c.body.chat_id}: ${c.body.text}`).join("\n");
+    expect(told).toMatch(new RegExp(`${U.id}: 👥 Friend joined`));
+    expect(told).toMatch(new RegExp(`${F.id}: 👥 You and Test are paired`));
+    const rows = await L.db.q(`select id, duo_partner from users where id in ($1, $2) order by id`, [U.id, F.id]);
+    expect(rows.map((r: any) => Number(r.duo_partner))).toEqual([F.id, U.id]);
+  });
+
+  it("a forged or self invite does nothing", async () => {
+    const { parseDuoCode, duoCode } = await import("../lib/duo.ts");
+    expect(parseDuoCode(duoCode(U.id))).toBe(U.id);
+    expect(parseDuoCode(duoCode(U.id).slice(0, -1) + "Z")).toBeNull();
+    expect(parseDuoCode("duo_abc")).toBeNull();
+  });
+
+  it("the shared pick sits inside both windows and both tastes; /duo off ends it for both", async () => {
+    const lp = L.util.localParts(new Date(Date.now() + 2 * 24 * H), TZ);
+    const day3 = L.util.localToUtc(lp.date, 12, TZ).getTime();
+    world.add({ ...EPL, home: "Duo Home", away: "Duo Away", kickoff: new Date(day3 + 8 * H), status: 1, hs: null, as: null });
+    world.add({ ...MINOR, home: "Hamlet A", away: "Hamlet B", kickoff: new Date(day3 + 9 * H), status: 1, hs: null, as: null });
+    const u = await L.telegram.getUser(U.id);
+    const at = new Date(L.util.localToUtc(lp.date, 18, TZ).getTime() + 5 * 60_000);
+    const { duoPick } = await import("../lib/duo.ts");
+    const d = await duoPick(u, at);
+    expect(d).toBeTruthy();
+    expect(d!.partnerName).toBe("Friend");
+    expect(`${d!.home} v ${d!.away}`).toBe("Duo Home v Duo Away"); // the Premier League game both lean to
+    const brief = L.telegram.briefText(u, { briefDate: lp.date, picks: [], considered: 0, recallOk: true, memoriesUsed: 1, recallMs: 1 }, 3, null, d);
+    expect(brief).toMatch(/👥 Watch together with Friend: <b>Duo Home v Duo Away<\/b>/);
+    const m = world.mark();
+    await L.telegram.handleUpdate(msg("/duo off"));
+    expect(lastText(m)).toMatch(/Pairing ended/);
+    expect(lastText(m)).toMatch(/ended your watch-together pairing/);
+    const rows = await L.db.q(`select duo_partner from users where id in ($1, $2)`, [U.id, F.id]);
+    expect(rows.every((r: any) => r.duo_partner === null)).toBe(true);
+  });
+
+  it("/export links a taste passport with every stored memory and its blob", async () => {
+    const m = world.mark();
+    await L.telegram.handleUpdate(msg("/export"));
+    const btn = world.since(m, "sendMessage")[0].body.reply_markup.inline_keyboard[0][0];
+    expect(btn.url).toMatch(/^https:\/\/pundit\.test\/api\/me\/export\?t=/);
+    await settleQueue();
+    const { tastePassport, PASSPORT_FORMAT } = await import("../lib/passport.ts");
+    const doc = await tastePassport(U.id);
+    expect(doc!.format).toBe(PASSPORT_FORMAT);
+    expect(doc!.memories.length).toBeGreaterThan(5);
+    expect(doc!.memories.every((x: any) => x.blobId && x.walruscan.includes(x.blobId))).toBe(true);
+    expect(doc!.taste.competitions.length).toBeGreaterThan(0);
+  });
+});
