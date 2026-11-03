@@ -76,6 +76,7 @@ async function upcoming(now: Date): Promise<[TonightMatch[], number]> {
       minute: isLive ? Math.round(minuteOf.get(c.f.matchId) ?? 0) : null,
       score: Math.round(c.base),
       reasons: publicReasons(c),
+      form: { home: c.hForm, away: c.aForm },
     });
   }
   return [out, pool.length];

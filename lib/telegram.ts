@@ -66,6 +66,21 @@ const LEAGUES: [string, string][] = [
   ["MLS", "2000000103"],
 ];
 
+/** How people actually name competitions in a sentence (accents stripped before matching). */
+const COMP_ALIASES: Record<string, string[]> = {
+  "2000001032": ["champions league", "ucl", "c1"],
+  "2000000000": ["premier league", "epl", "english league", "prem"],
+  "2000000037": ["laliga", "la liga", "primera division", "spanish league"],
+  "2000000026": ["serie a", "italian league", "calcio"],
+  "2000000019": ["bundesliga", "german league"],
+  "2000000018": ["ligue 1", "french league"],
+  "2000000092": ["v.league", "v league", "vleague", "vietnamese league"],
+  "504": ["nations league"],
+  "2000001033": ["afc champions league", "acl elite", "acle"],
+  "2000000103": ["mls"],
+  "2000001041": ["europa league", "uel"],
+};
+
 export async function getUser(id: number): Promise<(UserRow & { onboard_step: string; active: boolean; last_brief_date: string | null }) | null> {
   const u = await one<any>(`select * from users where id = $1`, [id]);
   return u ? { ...u, id: Number(u.id), chat_id: Number(u.chat_id) } : null;
@@ -229,10 +244,11 @@ export function reveal(p: any): string {
 async function teach(user: UserRow, text: string) {
   const clean = text.trim().slice(0, 400);
   if (clean.length < 4) return send(user.chat_id, "Tell me something like: <i>I love late comebacks</i>, or <i>no matches after 2am on weekdays</i>.");
-  const negative = /\b(hate|don'?t|do not|never|avoid|boring|skip|no more|not into|dislike)\b/i.test(clean);
+  const negative = /\b(hate|don'?t|do not|never|avoid|boring|skip|no more|not into|dislike|not after|nothing after)\b|\bno (late )?(matches|games|football|kick-?offs)\b/i.test(clean);
   const tags: string[] = [];
   const lower = clean.toLowerCase();
-  for (const [label, id] of LEAGUES) if (lower.includes(label.toLowerCase())) tags.push(`comp=${id}`);
+  const plain = lower.normalize("NFKD").replace(/[̀-ͯ]/g, "");
+  for (const [id, names] of Object.entries(COMP_ALIASES)) if (names.some((n) => new RegExp(`(^|[^a-z])${n.replace(/[.]/g, "\\.")}([^a-z]|$)`).test(plain))) tags.push(`comp=${id}`);
   // teams playing in the next week, matched by name
   const soon = await fixturesBetween(new Date(), new Date(Date.now() + 7 * 86_400_000)).catch(() => []);
   const seen = new Set<string>();

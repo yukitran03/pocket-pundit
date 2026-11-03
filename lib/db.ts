@@ -128,6 +128,7 @@ const SCHEMA = [
   `alter table users add column if not exists show_scores boolean not null default false`,
   `alter table users add column if not exists alerts boolean not null default true`,
   `alter table picks add column if not exists reminded_at timestamptz`,
+  `alter table memory_jobs add column if not exists notified_at timestamptz`,
   `create table if not exists alerts (
     user_id bigint not null,
     match_id text not null,

@@ -147,7 +147,12 @@ export function scoreCandidates(fixtures: Fixture[], forms: Map<string, TeamForm
       for (const [sig, p] of Object.entries(e)) add(`signal:${sig}`, p);
       add(`kick:${bucket}`, 1);
     }
-    const mem = clamp(base + 30 * contribs.reduce((s, c) => s + c.value, 0), 0, 100);
+    // Each kind of evidence gets its own bounded share, so many weak signals can't drown out a strong
+    // competition or kick-off preference (and scores don't all pile up at 100). Unclamped, for ranking.
+    const part = (prefix: string) => contribs.filter((c) => c.key.startsWith(prefix)).reduce((s, c) => s + c.value, 0);
+    const sigMass = Object.values(e).reduce((s, p) => s + p, 0) || 1;
+    const adj = 24 * clamp(part("comp:"), -1, 1) + 8 * clamp(part("team:"), -1, 1) + 30 * clamp(part("signal:") / sigMass, -1, 1) + 12 * clamp(part("kick:"), -1, 1);
+    const mem = base + adj;
     return { f, label: compLabel(f), base: clamp(base, 0, 100), mem, bucket, localKick: fmtLocalTime(f.kickoff, tz), exp: e, formKnown: known, avgGoals: g, hForm, aForm, contribs };
   });
 }
@@ -250,12 +255,12 @@ export async function buildBrief(user: UserRow, now = new Date()): Promise<Brief
     const { arm, c } = order[i];
     const { reasons, cites, neutral, memoryReasons } = explain(c, taste, arm);
     const id = shortId();
-    const score = Math.round(arm === "memory" ? c.mem : c.base);
+    const score = Math.round(clamp(arm === "memory" ? c.mem : c.base, 0, 100));
     const inserted = await q(
       `insert into picks (id, user_id, brief_date, slot, arm, match_id, comp_id, season_id, stage_id, competition, stage, home, away, home_id, away_id, kickoff, score, reasons, cites, features)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb)
        on conflict (user_id, brief_date, match_id) do nothing returning id`,
-      [id, user.id, date, i + 1, arm, c.f.matchId, c.f.compId, c.f.seasonId, c.f.stageId, c.label, c.f.stage, c.f.home, c.f.away, c.f.homeId, c.f.awayId, c.f.kickoff, score, JSON.stringify(reasons), JSON.stringify(cites), JSON.stringify({ base: Math.round(c.base), mem: Math.round(c.mem), bucket: c.bucket, exp: c.exp, contribs: c.contribs, neutral, memoryReasons })],
+      [id, user.id, date, i + 1, arm, c.f.matchId, c.f.compId, c.f.seasonId, c.f.stageId, c.label, c.f.stage, c.f.home, c.f.away, c.f.homeId, c.f.awayId, c.f.kickoff, score, JSON.stringify(reasons), JSON.stringify(cites), JSON.stringify({ base: Math.round(c.base), mem: Math.round(clamp(c.mem, 0, 100)), bucket: c.bucket, exp: c.exp, contribs: c.contribs, neutral, memoryReasons, form: { home: c.hForm, away: c.aForm } })],
     );
     if (inserted.length) picks.push({ id, slot: i + 1, arm, c, reasons, neutral, cites, score });
   }

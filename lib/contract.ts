@@ -42,8 +42,24 @@ export interface Pick {
   cites: Cite[]; // memories recalled from Walrus that shaped this pick (empty for control picks)
   rating: Rating | null;
   drama: Drama | null;
+  form?: MatchForm | null; // recent form of both sides when the pick was made (from the public feed)
   // Tonight's brief is written to Walrus before kick-off, so picks (and which arm chose them) can't be edited later.
   lock?: { blobId: string | null; lockedAt: string; minutesBeforeKickoff: number } | null;
+}
+
+/** Recent form of one side (last ~5 matches in the feed). */
+export interface FormLine {
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+}
+
+export interface MatchForm {
+  home: FormLine | null;
+  away: FormLine | null;
 }
 
 /** GET /api/tonight?tz=Area/City — public, no login. The agent with memory off, for anyone. */
@@ -58,6 +74,7 @@ export interface TonightMatch {
   minute: number | null; // when live
   score: number; // 0..100 "worth watching" for a neutral fan
   reasons: string[]; // at most 2, short
+  form?: MatchForm | null;
 }
 
 export interface ReplayMatch {

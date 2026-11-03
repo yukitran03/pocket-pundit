@@ -44,9 +44,15 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
     await guard("memory", async () => {
       const m = await processMemoryQueue();
       rep.memory = { submitted: m.submitted, stored: m.stored.length, failed: m.failed };
-      for (const s of m.stored) {
-        if (!s.notifyChat || !s.notifyMessage) continue;
-        await notifyStored(s.notifyChat, s.notifyMessage, s.blobId).catch(() => {});
+      // Notify from the table, not from this pass: a job may have been settled by the webhook's own queue run.
+      const due = await q<any>(
+        `select id, notify_chat, notify_message, blob_id from memory_jobs
+         where status = 'stored' and notify_chat is not null and notify_message is not null and notified_at is null
+           and updated_at > now() - interval '2 hours' order by id limit 20`,
+      );
+      for (const s of due) {
+        await notifyStored(Number(s.notify_chat), Number(s.notify_message), s.blob_id).catch(() => {});
+        await q(`update memory_jobs set notified_at = now() where id = $1`, [s.id]);
       }
     });
 

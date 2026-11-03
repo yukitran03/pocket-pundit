@@ -8,6 +8,12 @@ import type { MemoryKind } from "./contract.ts";
 import { parseMemory, type ParsedMemory } from "./taste.ts";
 
 let client: MemWal | null = null;
+
+/** Tests swap in the SDK's in-memory MemWalMock so end-to-end runs never write to mainnet. */
+export function useMemWalClient(c: unknown) {
+  client = c as MemWal;
+}
+
 export function memwal(): MemWal {
   if (!client) {
     client = MemWal.create({
