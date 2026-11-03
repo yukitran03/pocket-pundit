@@ -14,6 +14,7 @@ import type { UserRow } from "./picker.ts";
 import { KNOWN_COMPS } from "./views.ts";
 import { lockLine } from "./lock.ts";
 import { tonightView } from "./tonight.ts";
+import { coverageMap } from "./coverage.ts";
 
 export interface TickReport {
   memory: { submitted: number; stored: number; failed: number };
@@ -76,8 +77,21 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
       for (const p of due) {
         await guard(`settle ${p.id}`, async () => {
           const st = await matchState(p.match_id);
+          const kickMs = Date.parse(p.kickoff);
+          const hasResult = !!st && st.status === 0 && st.homeScore !== null && st.awayScore !== null;
+          // Some competitions never get a result in the feed. Ask anyway once the match must be over, so the
+          // rating (and what it teaches) isn't lost; there is just no score or drama to attach.
+          const noResult = !hasResult && ((!!st && (st.status === 1 || st.status === 0) && kickMs < now.getTime() - 150 * 60_000) || (!st && kickMs < now.getTime() - 6 * 3600_000));
+          if (noResult) {
+            await q(`update picks set status='finished', settled_at=now() where id=$1`, [p.id]);
+            rep.settled++;
+            const msg = await send(Number(p.chat_id), askText({ ...p, home_score: null, away_score: null, drama: null }, false), ratingKeyboard(p.id));
+            await q(`update picks set asked_at=now(), ask_message_id=$2 where id=$1`, [p.id, msg.message_id]);
+            rep.asked++;
+            return;
+          }
           if (!st) return;
-          if (st.status === 0) {
+          if (hasResult) {
             const ev = await timeline(p.match_id);
             const drama = computeDrama(ev, st.homeScore, st.awayScore);
             await q(`update picks set status='finished', home_score=$2, away_score=$3, drama=$4::jsonb, settled_at=now() where id=$1`, [p.id, st.homeScore, st.awayScore, JSON.stringify(drama)]);
@@ -147,6 +161,7 @@ ${escHtml(a.why)}${u.show_scores ? "" : " (Score hidden.)"}`;
     // Keep the public Tonight board warm so the landing page never waits on a cold ranking.
     await guard("tonight", async () => {
       await tonightView("UTC", now);
+      await coverageMap(now); // which competitions the feed settles; used by tomorrow's briefs
     });
 
     rep.ms = Date.now() - t0;

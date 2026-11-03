@@ -151,11 +151,15 @@ export function ratingKeyboard(pickId: string): Kb {
 /** Full-time result with the drama breakdown (shown after the user has answered, or always if they opted in). */
 export function resultText(p: any): string {
   const d: Drama | null = p.drama;
-  return `<b>FT · ${esc(p.home)} ${p.home_score ?? "?"}–${p.away_score ?? "?"} ${esc(p.away)}</b>\n${esc(p.competition)}${d ? `\nDrama ${d.score}/100: ${esc(dramaSummary(d))}.` : ""}`;
+  if (!hasScore(p)) return `<b>FT · ${esc(p.home)} v ${esc(p.away)}</b>\n${esc(p.competition)}\nThe data feed has no final score for this one, so your answer is what I learn from.`;
+  return `<b>FT · ${esc(p.home)} ${p.home_score}–${p.away_score} ${esc(p.away)}</b>\n${esc(p.competition)}${d ? `\nDrama ${d.score}/100: ${esc(dramaSummary(d))}.` : ""}`;
 }
+
+const hasScore = (p: any) => p.home_score !== null && p.home_score !== undefined && p.away_score !== null && p.away_score !== undefined;
 
 /** The post-match question. Spoiler-free by default: no score until you answer. */
 export function askText(p: any, showScores = false): string {
+  if (!hasScore(p)) return `<b>Full time · ${esc(p.home)} v ${esc(p.away)}</b>\n${esc(p.competition)}\n\nDid you watch it? The data feed has no result for this competition, so your tap is the whole signal tonight.`;
   if (showScores) return `${resultText(p)}\n\nDid you watch it?`;
   return `<b>Full time · ${esc(p.home)} v ${esc(p.away)}</b>\n${esc(p.competition)}\n\nDid you watch it? (No spoilers: I'll show the score once you answer.)`;
 }

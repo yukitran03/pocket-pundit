@@ -5,6 +5,7 @@ import { buildTaste, compKey, kickBucket, teamKey, type Taste } from "./taste.ts
 import { recallTaste } from "./memory.ts";
 import { localParts, localToUtc, fmtLocalTime, shortId, clamp } from "./util.ts";
 import { q } from "./db.ts";
+import { coverageFactor, coverageMap } from "./coverage.ts";
 
 export interface UserRow {
   id: number;
@@ -224,6 +225,14 @@ export async function buildBrief(user: UserRow, now = new Date()): Promise<Brief
   for (const f of shortlist.values()) [f.homeId, f.awayId].forEach((id) => id && teamIds.add(id));
   await Promise.all([...teamIds].map(async (id) => forms.set(id, await teamForm(id))));
   const cands = scoreCandidates([...shortlist.values()], forms, taste, user.tz, winEnd);
+  // Prefer competitions the data feed actually settles (results + timeline), so every pick can be rated
+  // against what happened. Applied to both arms alike, so the A/B stays fair.
+  const cov = await coverageMap(now).catch(() => null);
+  for (const c of cands) {
+    const k = coverageFactor(cov, c.f.compId);
+    c.base *= k;
+    c.mem *= k;
+  }
 
   const chosen: { arm: "memory" | "control"; c: Candidate }[] = [];
   const byMem = [...cands].sort((a, b) => b.mem - a.mem);

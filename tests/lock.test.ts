@@ -42,3 +42,23 @@ describe("single-purpose keys", () => {
     expect(verifyPurposeKey("card", k.slice(0, -1) + (k.endsWith("A") ? "B" : "A"))).toBeNull();
   });
 });
+
+describe("feed coverage", () => {
+  it("down-weights competitions the feed never settles, leaves unknown ones alone", async () => {
+    const { coverageFactor } = await import("../lib/coverage.ts");
+    const cov = new Map([["covered", { n: 10, done: 10 }], ["never", { n: 10, done: 0 }], ["patchy", { n: 10, done: 5 }], ["thin", { n: 2, done: 0 }]]);
+    expect(coverageFactor(cov, "covered")).toBe(1);
+    expect(coverageFactor(cov, "never")).toBe(0.7);
+    expect(coverageFactor(cov, "patchy")).toBe(0.88);
+    expect(coverageFactor(cov, "thin")).toBe(1);
+    expect(coverageFactor(cov, "unknown")).toBe(1);
+    expect(coverageFactor(null, "x")).toBe(1);
+  });
+  it("asks without a score when the feed has no result", async () => {
+    const { askText, resultText } = await import("../lib/telegram.ts");
+    const p = { home: "Port", away: "Beijing Guoan", competition: "AFC Champions League Elite", home_score: null, away_score: null, drama: null };
+    expect(askText(p)).toMatch(/no result for this competition/);
+    expect(resultText(p)).not.toMatch(/\?/);
+    expect(resultText({ ...p, home_score: 2, away_score: 1 })).toMatch(/Port 2–1 Beijing Guoan/);
+  });
+});
