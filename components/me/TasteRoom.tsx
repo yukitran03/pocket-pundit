@@ -7,7 +7,7 @@ import { SceneBoundary } from "@/components/three/SceneBoundary";
 import { useIdle, useInView, useReducedMotion, useWebGL } from "@/components/three/hooks";
 import { KIND_META, PRIMARY_KINDS } from "@/lib/client/kinds";
 import { lifeLeft, walruscanBlob } from "@/lib/client/chain";
-import { fmtDateTime } from "@/lib/client/format";
+import { cleanMemoryText, fmtDateTime, shortId } from "@/lib/client/format";
 import { IconExternal, IconX } from "@/components/site/Icons";
 import { KindTag, ShapeGlyph, StatusPill } from "@/components/memory/Tags";
 
@@ -78,12 +78,12 @@ export function TasteRoom({
             <FocusPanel item={focus} currentEpoch={currentEpoch} epochEstimated={epochEstimated} tz={tz} pinned={focus.key === selected} onClear={() => onSelect(null)} />
           ) : (
             <p className="text-sm text-chalk-3">
-              Hover or tap a memory in the room, or choose one from the table below, to see its text, blob ID and storage life. The table is the accessible version of this view.
+              Hover or tap a memory to read it. The table below lists the same memories.
             </p>
           )}
         </div>
         <ul className="grid grid-cols-2 gap-x-5 gap-y-1.5 text-xs text-chalk-2 sm:flex sm:flex-wrap lg:max-w-[18rem] lg:justify-end" aria-label="Legend">
-          {PRIMARY_KINDS.map((k) => (
+          {[...PRIMARY_KINDS, ...(items.some((i) => i.row.kind === "brief") ? (["brief"] as const) : [])].map((k) => (
             <li key={k} className="inline-flex items-center gap-1.5"><ShapeGlyph shape={KIND_META[k].shape} color={KIND_META[k].color} /> {KIND_META[k].label}</li>
           ))}
           <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-full bg-flare shadow-[0_0_8px_2px_rgb(240_83_28/.6)]" /> Cited tonight</li>
@@ -104,20 +104,20 @@ function FocusPanel({ item, currentEpoch, epochEstimated, tz, pinned, onClear }:
           <KindTag kind={r.kind} />
           <StatusPill status={r.status} />
           {item.cited ? <span className="chip !h-[22px] !text-flare">Cited tonight</span> : null}
-          <span className="mono text-xs text-chalk-3">{fmtDateTime(r.createdAt, tz)}</span>
+          <span className="text-xs text-chalk-3">{fmtDateTime(r.createdAt, tz)}</span>
         </div>
-        <p className="mt-2 text-[0.95rem] text-chalk">“{r.text}”</p>
-        <p className="mono mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-chalk-3">
+        <p className="mt-2 text-[0.95rem] text-chalk">“{cleanMemoryText(r.text)}”</p>
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-chalk-3">
           {r.blobId ? (
-            <a className="link inline-flex items-center gap-1 break-all !text-chalk-2" href={r.walruscanUrl ?? walruscanBlob(r.blobId)} target="_blank" rel="noopener noreferrer">
-              blob {r.blobId} <IconExternal size={12} />
+            <a className="chip chip-id" href={r.walruscanUrl ?? walruscanBlob(r.blobId)} target="_blank" rel="noopener noreferrer" aria-label={`Open blob ${r.blobId} on Walruscan`} title={r.blobId}>
+              {shortId(r.blobId, 6, 4)} <IconExternal size={11} />
             </a>
           ) : (
             <span>No blob ID yet</span>
           )}
           {left !== null ? (
             <span>
-              end epoch {r.endEpoch} · {left > 0 ? `${epochEstimated ? "≈" : ""}${left} ${left === 1 ? "epoch" : "epochs"} left` : "expired"}
+              Stored until epoch {r.endEpoch} · {left > 0 ? `${epochEstimated ? "≈" : ""}${left} ${left === 1 ? "epoch" : "epochs"} left` : "expired"}
               {left > 0 && lifeLeft(r.endEpoch, currentEpoch) < 1 ? " · renew soon" : ""}
             </span>
           ) : null}
@@ -148,7 +148,7 @@ function TileFallback({ items, currentEpoch, selected, onSelect, highlighted }: 
                 type="button"
                 onClick={() => onSelect(selected === it.key ? null : it.key)}
                 aria-pressed={selected === it.key}
-                aria-label={`${m.label}: ${it.row.text}`}
+                aria-label={`${m.label}: ${cleanMemoryText(it.row.text)}`}
                 className="grid h-9 w-9 place-items-center rounded-md bg-ink-2"
                 style={{
                   opacity: dim ? 0.25 : 0.35 + 0.65 * life,

@@ -5,9 +5,9 @@ import type { ProofResponse } from "@/lib/contract";
 import { getProof } from "@/lib/client/api";
 import { useApi } from "@/lib/client/useApi";
 import { suiscanAccount, suiscanObject, walruscanBlob } from "@/lib/client/chain";
-import { fmtBytes, fmtInt, shortId } from "@/lib/client/format";
+import { fmtBriefDate, fmtBytes, fmtInt, fmtLead, fmtTime, shortId, visitorTz } from "@/lib/client/format";
 import { DataSourceBadge, EmptyState, ErrorState, Skeleton } from "@/components/site/States";
-import { IconCheck, IconExternal, IconRefresh } from "@/components/site/Icons";
+import { IconCheck, IconExternal, IconLock, IconRefresh } from "@/components/site/Icons";
 
 export function ProofView() {
   const p = useApi<ProofResponse>((s) => getProof(s), "proof");
@@ -19,9 +19,9 @@ export function ProofView() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="mono flex flex-wrap items-center gap-2 text-xs text-chalk-3">
+        <p className="flex flex-wrap items-center gap-2 text-xs text-chalk-3">
           <span className="chip !text-chalk-2">Sui {d.network}</span>
-          Checked <time dateTime={d.checkedAt}>{d.checkedAt.replace("T", " ").slice(0, 19)} UTC</time>
+          <span>Checked at <time dateTime={d.checkedAt}>{fmtTime(d.checkedAt, visitorTz())}</time> your time</span>
           <DataSourceBadge source={p.source} />
         </p>
         <button type="button" onClick={p.reload} className="btn btn-ghost !min-h-[38px]">
@@ -34,6 +34,7 @@ export function ProofView() {
         <ChainCard d={d} />
       </div>
       <Reconcile d={d} />
+      <Locks d={d} />
       <BlobTable d={d} />
     </div>
   );
@@ -63,13 +64,12 @@ function Copy({ value, label }: { value: string; label: string }) {
 
 function IdLine({ label, value, href }: { label: string; value: string; href: string }) {
   return (
-    <div>
-      <dt className="micro">{label}</dt>
-      <dd className="mt-1.5 flex flex-wrap items-center gap-1">
-        <a href={href} target="_blank" rel="noopener noreferrer" className="mono link break-all text-[0.82rem] !text-chalk-2">
-          {value}
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+      <dt className="text-sm text-chalk-2">{label}</dt>
+      <dd className="flex items-center gap-1">
+        <a href={href} target="_blank" rel="noopener noreferrer" className="chip chip-id" title={value} aria-label={`${label} ${value}, open on Suiscan`}>
+          {shortId(value, 8, 6)} <IconExternal size={11} />
         </a>
-        <IconExternal size={12} className="text-chalk-3" />
         <Copy value={value} label={label} />
       </dd>
     </div>
@@ -107,13 +107,13 @@ function AccountCard({ d }: { d: ProofResponse }) {
                 <li key={k.suiAddress} className="grid gap-1 p-3.5 sm:grid-cols-[1fr_auto] sm:items-center">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{k.label}</p>
-                    <p className="mono mt-0.5 truncate text-xs text-chalk-3" title={k.publicKeyHex}>pubkey {shortId(k.publicKeyHex, 10, 6)}</p>
+                    <p className="mt-0.5 truncate text-xs text-chalk-3" title={k.publicKeyHex}>Public key <span className="chip-id">{shortId(k.publicKeyHex, 8, 6)}</span></p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     <a href={suiscanAccount(k.suiAddress)} target="_blank" rel="noopener noreferrer" className="chip" aria-label={`Delegate address ${k.suiAddress} on Suiscan`}>
                       {shortId(k.suiAddress, 6, 4)} <IconExternal size={11} />
                     </a>
-                    <span className="mono text-[0.7rem] text-chalk-4">since {k.createdAt.slice(0, 10)}</span>
+                    <span className="text-xs text-chalk-4">added {fmtBriefDate(k.createdAt.slice(0, 10))}</span>
                   </div>
                 </li>
               ))}
@@ -135,11 +135,11 @@ function ChainCard({ d }: { d: ProofResponse }) {
       <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-[var(--line)]">
         <div className="flex flex-col-reverse bg-ink-1 p-4">
           <dt className="mt-1 text-xs text-chalk-3">Sui epoch</dt>
-          <dd className="font-display text-4xl font-extrabold leading-none">{d.chain.epoch ?? "–"}</dd>
+          <dd className="font-display text-4xl font-extrabold leading-none">{d.chain.epoch ?? <span className="text-chalk-4">n/a</span>}</dd>
         </div>
         <div className="flex flex-col-reverse bg-ink-1 p-4">
           <dt className="mt-1 text-xs text-chalk-3">Checkpoint</dt>
-          <dd className="mono text-lg font-semibold leading-tight text-chalk tnum">{d.chain.checkpoint ? fmtInt(Number(d.chain.checkpoint)) : "–"}</dd>
+          <dd className="mono text-lg font-semibold leading-tight text-chalk tnum">{d.chain.checkpoint ? fmtInt(Number(d.chain.checkpoint)) : <span className="text-chalk-4">n/a</span>}</dd>
         </div>
       </dl>
       <p className="micro mt-5">Read via</p>
@@ -202,6 +202,44 @@ function Reconcile({ d }: { d: ProofResponse }) {
   );
 }
 
+/** Brief locks: each evening's picks, written to Walrus before the first kick-off. Optional in the API. */
+function Locks({ d }: { d: ProofResponse }) {
+  const locks = d.locks;
+  if (!locks?.length) return null;
+  const tz = visitorTz();
+  return (
+    <section className="card p-5 md:p-6" aria-labelledby="locks-h">
+      <p className="micro">Locked briefs</p>
+      <h2 id="locks-h" className="mt-1 text-xl font-semibold">Picks written down before kick-off</h2>
+      <p className="mt-1 max-w-2xl text-sm text-chalk-3">Every evening&rsquo;s three picks are stored on Walrus before the first game starts, so nobody can change them after the fact. Which pick ran with memory off is sealed as a hash.</p>
+      <ul className="mt-5 divide-y divide-[var(--line-faint)] rounded-xl bg-ink-0/50 hairline">
+        {locks.map((l) => (
+          <li key={l.blobId} className="grid gap-2 p-3.5 sm:grid-cols-[6.5rem_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+            <span className="text-sm font-medium text-chalk">{fmtBriefDate(l.date)}</span>
+            <span className="flex min-w-0 items-start gap-2 text-sm text-chalk-2">
+              <IconLock size={14} className="mt-[3px] shrink-0 text-flare" />
+              <span>
+                {l.minutesBefore !== null ? `Locked ${fmtLead(l.minutesBefore)} before first kick-off` : "Locked before kick-off"}
+                <span className="text-chalk-3"> · {l.certifiedAt ? `certified on Sui at ${fmtTime(l.certifiedAt, tz)} your time (via Tatum)` : "Sui certificate pending"}</span>
+              </span>
+            </span>
+            <span className="flex flex-wrap gap-1.5 sm:justify-end">
+              <a href={walruscanBlob(l.blobId)} target="_blank" rel="noopener noreferrer" className="chip chip-id" title={l.blobId} aria-label={`Locked brief blob ${l.blobId} on Walruscan`}>
+                {shortId(l.blobId, 5, 4)} <IconExternal size={11} />
+              </a>
+              {l.objectId ? (
+                <a href={suiscanObject(l.objectId)} target="_blank" rel="noopener noreferrer" className="chip" aria-label={`Sui object ${l.objectId} on Suiscan`}>
+                  Suiscan <IconExternal size={11} />
+                </a>
+              ) : null}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function BlobTable({ d }: { d: ProofResponse }) {
   const rows = d.blobs.sample;
   return (
@@ -223,7 +261,7 @@ function BlobTable({ d }: { d: ProofResponse }) {
                 <th scope="col">Blob ID</th>
                 <th scope="col">Namespace</th>
                 <th scope="col" className="num">Size</th>
-                <th scope="col" className="num">End epoch</th>
+                <th scope="col" className="num">Stored until epoch</th>
               </tr>
             </thead>
             <tbody>
@@ -240,8 +278,8 @@ function BlobTable({ d }: { d: ProofResponse }) {
                     </a>
                   </td>
                   <td className="mono text-xs text-chalk-3">{b.namespace ?? <span className="text-chalk-4">not tagged</span>}</td>
-                  <td className="num mono text-xs">{fmtBytes(b.size)}</td>
-                  <td className="num mono text-xs">{b.endEpoch ?? "–"}</td>
+                  <td className="num text-xs">{fmtBytes(b.size)}</td>
+                  <td className="num mono text-xs">{b.endEpoch ?? "n/a"}</td>
                 </tr>
               ))}
             </tbody>

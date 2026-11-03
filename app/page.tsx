@@ -1,63 +1,68 @@
-import Link from "next/link";
-import { BOT_URL, type Pick } from "@/lib/contract";
-import { SAMPLE_DAY1, SAMPLE_DAY7, SAMPLE_TZ, FIXTURE_HISTORY } from "@/lib/fixtures";
-import { fmtTime } from "@/lib/client/format";
-import { RATING_META } from "@/lib/client/kinds";
+import type { Pick } from "@/lib/contract";
+import { BRAND } from "@/lib/brand";
+import { SAMPLE_DAY1, SAMPLE_DAY7, SAMPLE_TZ } from "@/lib/fixtures";
+import { fmtTime, localHour } from "@/lib/client/format";
 import { Section } from "@/components/site/Section";
 import { IconArrowRight, IconTelegram } from "@/components/site/Icons";
-import { PickCard, RatingGlyph } from "@/components/pick/PickCard";
-import { KickoffStrip } from "@/components/charts/KickoffStrip";
 import { StatsProvider } from "@/components/landing/StatsProvider";
 import { HeroVisual } from "@/components/landing/HeroVisual";
 import { ABFromStats, LessonsFeed, LiveNumbers, StatsSourceBadge } from "@/components/landing/LiveSections";
-import { HowItLearns } from "@/components/landing/HowItLearns";
+import { HowItWorks } from "@/components/landing/HowItWorks";
+import { Features } from "@/components/landing/Features";
+import { TonightBoard } from "@/components/landing/Tonight";
 import { Ownership } from "@/components/landing/Ownership";
+import { Faq } from "@/components/landing/Faq";
+import { GooeyWords } from "@/components/fx/GooeyWords";
+import { ScrollReveal, SmoothScroll } from "@/components/fx/Motion";
 
-// Illustrative sample (clearly labelled on the page): the same viewer on day 1 and day 7.
+// Illustrative sample (labelled on the page): the same viewer on day 1 and day 7.
 // For the illustration the arms are revealed; in the product they stay hidden until rated.
 const reveal = (p: Pick): Pick => ({ ...p, arm: p.arm ?? (p.cites.length ? "memory" : "control") });
 const DAY7 = SAMPLE_DAY7.map(reveal);
 const SAMPLE_CARD = DAY7.find((p) => p.competition.startsWith("AFC")) ?? DAY7[0];
-const STRIP = [...FIXTURE_HISTORY, ...DAY7];
+const PHRASES = ["your evening.", "staying up for.", "the highlights."];
 
 export default function Home() {
   return (
     <StatsProvider>
+      <SmoothScroll />
       {/* ------------------------------------------------------------ hero */}
       <section aria-labelledby="hero-title" className="relative overflow-hidden">
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(50% 60% at 78% 30%, rgb(255 240 210 / 0.05), transparent 70%)" }} />
         <div className="shell relative grid gap-6 pb-6 pt-10 md:pt-16 lg:grid-cols-12 lg:gap-0 lg:pb-16 lg:pt-20">
           <div className="relative z-10 lg:col-span-6 lg:pr-6">
-            <p className="micro flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="text-chalk-2">Football agent with a memory</span>
-              <span aria-hidden className="h-px w-6 bg-line-strong" />
-              <span>Walrus · Sui mainnet</span>
-            </p>
-            <h1 id="hero-title" className="display-xl mt-6">
-              400 fixtures tonight.
-              <br />
-              <span className="text-flare">Three</span> worth your evening.
+            <p className="micro text-chalk-2">Your football pundit, in Telegram</p>
+            <h1 id="hero-title" className="hero-title mt-6">
+              <span className="sr-only">400 fixtures tonight. Three worth your evening.</span>
+              <span aria-hidden className="block">
+                400 fixtures tonight.
+                <br />
+                <span className="text-flare">Three</span> worth
+                <br />
+                <GooeyWords phrases={PHRASES} />
+              </span>
             </h1>
             <p className="lede mt-7 max-w-xl">
-              Match Finder is a Telegram agent that learns what <em className="not-italic text-chalk">you</em> actually enjoy watching. It remembers on Walrus, encrypted and owned by you, so tomorrow’s picks are better than today’s.
+              {BRAND.name} is a Telegram bot that knows your taste. Every evening it sends the three matches most worth your time, at hours you can actually watch. No spoilers, a reminder before kick-off, and a ping when a game turns.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <a href={BOT_URL} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+              <a href={BRAND.botUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
                 <IconTelegram size={18} /> Open in Telegram
               </a>
-              <Link href="/proof" className="btn btn-ghost">
-                See the proof <IconArrowRight size={16} />
-              </Link>
+              <a href="#tonight" className="btn btn-ghost">
+                See tonight&rsquo;s picks <IconArrowRight size={16} className="rotate-90" />
+              </a>
             </div>
-            <dl className="mt-12 grid max-w-lg grid-cols-3 border-y border-line">
+            <p className="mt-4 text-sm text-chalk-3">Free. Set up in four taps. No wallet, no app to install.</p>
+            <dl className="mt-10 grid max-w-lg grid-cols-3 border-y border-line">
               {[
-                ["3", "picks a night"],
-                ["2 + 1", "memory + control"],
-                ["0", "labels: rated blind"],
+                ["3", "matches a night"],
+                ["0", "spoilers"],
+                ["1 tap", "to rate"],
               ].map(([v, l]) => (
                 <div key={l} className="flex flex-col py-4 pr-3 [&+&]:border-l [&+&]:border-line [&+&]:pl-4">
-                  <dt className="order-last text-xs text-chalk-3">{l}</dt>
-                  <dd className="font-display text-3xl font-extrabold leading-none">{v}</dd>
+                  <dt className="order-last mt-1 text-sm text-chalk-2">{l}</dt>
+                  <dd className="font-display text-4xl font-extrabold leading-none">{v}</dd>
                 </div>
               ))}
             </dl>
@@ -68,130 +73,117 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ------------------------------------------------------------ how it learns */}
-      <Section
-        id="how"
-        index="01"
-        label="The loop"
-        title="It learns one evening at a time."
-        lede="A daily loop with a real feedback signal. Your rating is half of it, and the match itself is the other half."
-        wide
-      >
-        <HowItLearns />
+      {/* ------------------------------------------------------------ how it works */}
+      <Section id="how" index="01" label="How it works" title="Three steps. Then it does the scrolling." wide>
+        <HowItWorks sample={SAMPLE_CARD} tz={SAMPLE_TZ} />
       </Section>
 
-      {/* ------------------------------------------------------------ sample pick, day 1 vs day 7 */}
+      {/* ------------------------------------------------------------ features */}
+      <Section id="features" index="02" label="What you get" title="Less scrolling. No spoilers. No missed thrillers." lede="Six things your pundit does every day, each one a tap or a command away." wide>
+        <Features />
+      </Section>
+
+      {/* ------------------------------------------------------------ tonight, live */}
+      <Section id="tonight" index="03" label="Tonight" title="What’s worth watching tonight." lede="Straight from the live feed, in your time zone. This is your pundit before it knows you." wide>
+        <TonightBoard />
+      </Section>
+
+      {/* ------------------------------------------------------------ results: numbers + A/B */}
       <Section
-        id="tonight"
-        index="02"
-        label="Tonight"
-        title="Every pick shows its working."
-        lede="This is a pick card exactly as the product renders it: kickoff in your time zone, why it was picked, and the memories it recalled, each linked to its blob on Walrus."
+        id="results"
+        index="04"
+        label="Results"
+        title="Better every night. We measure it."
+        lede="Each brief hides one pick chosen with memory off. Viewers rate all three without knowing which is which, so the comparison is fair."
+        aside={<StatsSourceBadge />}
         wide
       >
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,400px)_1fr] lg:gap-10">
-          <PickCard pick={SAMPLE_CARD} tz={SAMPLE_TZ} openCites sampleLabel="Sample" />
-          <div className="flex min-w-0 flex-col gap-6">
-            <div className="grid grid-cols-1 gap-px overflow-hidden rounded-[var(--radius-card)] bg-[var(--line)] sm:grid-cols-2">
-              <DayColumn title="Day 1" sub="Knew 2 onboarding notes" picks={SAMPLE_DAY1} />
-              <DayColumn title="Day 7" sub="Knows 24 memories" picks={DAY7} highlight />
+        <div className="space-y-10">
+          <LiveNumbers />
+          <div id="ab">
+            <h3 className="display-s mb-4">Memory picks vs memory-off picks</h3>
+            <ABFromStats />
+          </div>
+          <div className="grid gap-10 lg:grid-cols-2">
+            <div>
+              <h3 className="display-s">One viewer, day 1 vs day 7</h3>
+              <p className="mt-2 text-sm text-chalk-3">Illustration with sample data: a viewer in Ho Chi Minh City who watches from 19:00 to 01:00.</p>
+              <DayCompare />
             </div>
-            <KickoffStrip picks={STRIP} tz={SAMPLE_TZ} windowStart={19} windowEnd={25} caption="Where each day’s picks kicked off, local time" />
-            <p className="text-sm text-chalk-3">
-              Illustrative sample for one viewer in Ho Chi Minh City (window 19:00–01:00). On day 1 the agent chose big names kicking off at 03:00. By day 7 the memory picks sit inside the window and favour late drama. The control pick still goes wherever the big game is.
-            </p>
+            <div>
+              <h3 className="display-s">What pundits learned this week</h3>
+              <p className="mt-2 text-sm text-chalk-3">Recent lessons from all viewers, anonymised.</p>
+              <div className="mt-5"><LessonsFeed limit={4} /></div>
+            </div>
           </div>
         </div>
       </Section>
 
-      {/* ------------------------------------------------------------ live numbers */}
-      <Section id="numbers" index="03" label="Live" title="Running on mainnet, right now." aside={<StatsSourceBadge />}>
-        <LiveNumbers />
-      </Section>
-
-      {/* ------------------------------------------------------------ A/B */}
-      <Section
-        id="ab"
-        index="04"
-        label="A/B test"
-        title="Memory vs no memory, rated blind."
-        lede="Each brief hides one control pick chosen with memory switched off. If memory helps, the memory arm should rate higher. If it doesn’t, this chart will say so."
-        aside={<StatsSourceBadge />}
-      >
-        <ABFromStats />
-      </Section>
-
-      {/* ------------------------------------------------------------ lessons */}
-      <Section
-        id="lessons"
-        index="05"
-        label="Lessons"
-        title="What it learned this week."
-        lede="Recent lessons across all viewers, anonymised: lesson text only, no names or handles. Each stored lesson links to its Walrus blob."
-      >
-        <LessonsFeed />
-      </Section>
-
       {/* ------------------------------------------------------------ ownership */}
-      <Section
-        id="yours"
-        index="06"
-        label="Ownership"
-        title="Your memory is yours."
-        lede="What the agent knows about your taste isn’t locked in our database. It is a set of encrypted blobs on Walrus, owned by an account you can inspect on Sui."
-      >
+      <Section id="yours" index="05" label="Your data" title="Your taste memory is yours." lede="What your pundit learns is encrypted and kept on Walrus. Anyone can check it on Sui, and you never need a wallet.">
         <Ownership />
+      </Section>
+
+      {/* ------------------------------------------------------------ FAQ */}
+      <Section id="faq" index="06" label="FAQ" title="Questions, answered.">
+        <Faq />
       </Section>
 
       {/* ------------------------------------------------------------ closing CTA */}
       <section className="shell mt-[var(--section-gap)]" aria-labelledby="cta-title">
-        <div className="card relative overflow-hidden p-8 md:p-12">
+        <div className="card relative overflow-hidden p-8 md:p-12" data-reveal>
           <div aria-hidden className="pointer-events-none absolute -right-20 -top-28 h-80 w-80 rounded-full" style={{ background: "radial-gradient(closest-side, rgb(240 83 28 / 0.25), transparent)" }} />
           <div className="relative grid gap-6 md:grid-cols-[1fr_auto] md:items-end">
             <div>
-              <h2 id="cta-title" className="display-l max-w-2xl">Tell it when you can watch. It handles the other 397.</h2>
-              <p className="lede mt-4 max-w-xl">Start the bot, set your time zone and window, and your first three picks arrive tonight. Send <span className="mono text-chalk">/me</span> any time for your private dashboard link.</p>
+              <h2 id="cta-title" className="display-l max-w-2xl">Tell your pundit when you can watch. It handles the other 397.</h2>
+              <p className="lede mt-4 max-w-xl">Answer four quick questions and tonight&rsquo;s three arrive at the hour you choose. Send <span className="mono text-chalk">/me</span> any time for your private dashboard.</p>
             </div>
-            <a href={BOT_URL} target="_blank" rel="noopener noreferrer" className="btn btn-primary self-start md:self-end">
-              <IconTelegram size={18} /> Open in Telegram
-            </a>
+            <div className="flex flex-col items-start gap-2 md:items-end">
+              <a href={BRAND.botUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+                <IconTelegram size={18} /> Open in Telegram
+              </a>
+              <span className="mono text-xs text-chalk-3">{BRAND.botHandle}</span>
+            </div>
           </div>
         </div>
       </section>
+      <ScrollReveal />
     </StatsProvider>
   );
 }
 
-function DayColumn({ title, sub, picks, highlight = false }: { title: string; sub: string; picks: Pick[]; highlight?: boolean }) {
-  const sorted = [...picks].sort((a, b) => a.slot - b.slot);
+/** Day 1 vs day 7 for the sample viewer: how many picks landed inside her viewing hours. */
+function DayCompare() {
+  const inWindow = (p: Pick) => {
+    const h = localHour(p.kickoff, SAMPLE_TZ);
+    return h >= 19 && h <= 25;
+  };
+  const days = [
+    { label: "Day 1", picks: [...SAMPLE_DAY1].sort((a, b) => a.kickoff.localeCompare(b.kickoff)), note: "Big names at 03:00. She bailed or skipped two." },
+    { label: "Day 7", picks: [...DAY7].sort((a, b) => a.kickoff.localeCompare(b.kickoff)), note: "Both memory picks sit inside her hours." },
+  ];
   return (
-    <div className="min-w-0 bg-ink-1 p-5">
-      <div className="flex items-baseline justify-between">
-        <h3 className={`font-display text-3xl font-extrabold leading-none ${highlight ? "text-flare" : ""}`}>{title}</h3>
-        <span className="text-xs text-chalk-3">{sub}</span>
-      </div>
-      <ul className="mt-4 divide-y divide-[var(--line-faint)]">
-        {sorted.map((p) => (
-          <li key={p.id} className="flex items-center gap-3 py-2.5">
-            <span className="mono w-12 shrink-0 text-sm text-chalk">{fmtTime(p.kickoff, SAMPLE_TZ)}</span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm text-chalk-2">{p.home} v {p.away}</span>
-              <span className="flex items-center gap-1.5 text-[0.7rem] text-chalk-3">
-                <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: p.arm === "memory" ? "var(--flare)" : "var(--steel)" }} />
-                {p.arm === "memory" ? `${p.cites.length} ${p.cites.length === 1 ? "memory" : "memories"} cited` : "control, memory off"}
-              </span>
-            </span>
-            {p.rating ? (
-              <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-chalk-2">
-                <RatingGlyph rating={p.rating} size={12} />
-                {RATING_META[p.rating].label}
-              </span>
-            ) : (
-              <span className="shrink-0 text-xs text-chalk-3">tonight</span>
-            )}
-          </li>
-        ))}
-      </ul>
+    <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius-card)] bg-[var(--line)]">
+      {days.map((d, i) => {
+        const n = d.picks.filter(inWindow).length;
+        return (
+          <div key={d.label} className="flex flex-col bg-ink-1 p-4 sm:p-5">
+            <p className="text-sm font-medium text-chalk">{d.label}</p>
+            <p className={`mt-2 font-display text-5xl font-extrabold leading-none ${i ? "text-flare" : ""}`}>
+              {n}<span className="text-2xl text-chalk-3"> of {d.picks.length}</span>
+            </p>
+            <p className="mt-1 text-sm text-chalk-2">picks she could watch</p>
+            <ul className="mt-4 flex flex-wrap gap-1.5" aria-label={`${d.label} kick-off times`}>
+              {d.picks.map((p) => (
+                <li key={p.id} className="chip chip-id !h-[22px]" style={inWindow(p) ? { color: "var(--chalk)", boxShadow: `inset 0 0 0 1px ${p.arm === "memory" ? "rgb(240 83 28 / .55)" : "rgb(57 135 229 / .55)"}` } : { color: "var(--chalk-4)" }}>
+                  {fmtTime(p.kickoff, SAMPLE_TZ)}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-chalk-3">{d.note}</p>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { ArmCompare } from "@/components/charts/ArmCompare";
-import { IconExternal } from "@/components/site/Icons";
+import { BlobChip } from "@/components/pick/PickCard";
 import { DataSourceBadge, EmptyState, ErrorState, Skeleton } from "@/components/site/States";
-import { walruscanBlob } from "@/lib/client/chain";
-import { fmtAgo, fmtCompact, fmtInt, shortId } from "@/lib/client/format";
+import { cleanMemoryText, fmtAgo, fmtCompact, fmtInt } from "@/lib/client/format";
+import { useNow } from "@/lib/client/useNow";
 import { useStats } from "./StatsProvider";
 
 export function StatsSourceBadge() {
@@ -19,37 +18,30 @@ export function LiveNumbers() {
 
   const d = s.status === "ok" ? s.data : null;
   const tiles = [
-    { label: "Memories stored on Walrus", value: d?.memoriesStored, note: "Encrypted, user-scoped blobs" },
-    { label: "Picks sent", value: d?.picksSent, note: d ? `To ${fmtInt(d.users)} ${d.users === 1 ? "viewer" : "viewers"} on Telegram` : "To viewers on Telegram" },
-    { label: "Picks rated", value: d?.picksRated, note: d && d.picksSent ? `${Math.round((d.picksRated / d.picksSent) * 100)}% of picks got a rating` : "Loved, Fine, Bailed or Didn’t watch" },
-    { label: "Fixtures scanned", value: d?.matchesScanned, note: "Every fixture considered, across all briefs" },
+    { label: "Picks sent", value: d?.picksSent, note: d ? `to ${fmtInt(d.users)} ${d.users === 1 ? "viewer" : "viewers"}` : "on Telegram" },
+    { label: "Picks rated", value: d?.picksRated, note: d && d.picksSent ? `${Math.round((d.picksRated / d.picksSent) * 100)}% of picks` : "one tap each" },
+    { label: "Memories saved", value: d?.memoriesStored, note: "on Walrus mainnet" },
+    { label: "Fixtures checked", value: d?.matchesScanned, note: "across every brief" },
   ];
 
   return (
-    <div>
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius-card)] bg-[var(--line)] lg:grid-cols-4" aria-busy={s.status === "loading"}>
-        {tiles.map((t) => (
-          <div key={t.label} className="flex flex-col bg-ink-1 p-5 md:p-6">
-            <dt className="text-sm text-chalk-2">{t.label}</dt>
-            <dd className="order-first mb-4 mt-1 min-h-[3.25rem]">
-              {t.value === undefined ? (
-                <Skeleton className="h-12 w-28" />
-              ) : (
-                <span className="font-display text-[clamp(2.5rem,1.5rem+3vw,3.75rem)] font-extrabold leading-none" title={fmtInt(t.value)}>
-                  {fmtCompact(t.value)}
-                </span>
-              )}
-            </dd>
-            <dd className="mt-1 text-xs text-chalk-3">{t.note}</dd>
-          </div>
-        ))}
-      </dl>
-      {d ? (
-        <p className="mono mt-3 text-xs text-chalk-3">
-          Updated <time dateTime={d.updatedAt}>{new Date(d.updatedAt).toISOString().replace("T", " ").slice(0, 16)} UTC</time>
-        </p>
-      ) : null}
-    </div>
+    <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius-card)] bg-[var(--line)] lg:grid-cols-4" aria-busy={s.status === "loading"}>
+      {tiles.map((t) => (
+        <div key={t.label} className="flex flex-col bg-ink-1 p-5 md:p-6">
+          <dt className="text-sm font-medium text-chalk">{t.label}</dt>
+          <dd className="order-first mb-3 min-h-[3.25rem]">
+            {t.value === undefined ? (
+              <Skeleton className="h-12 w-24" />
+            ) : (
+              <span className="font-display text-[clamp(2.6rem,1.6rem+3vw,3.75rem)] font-extrabold leading-none" title={fmtInt(t.value)}>
+                {fmtCompact(t.value)}
+              </span>
+            )}
+          </dd>
+          <dd className="mt-0.5 text-xs text-chalk-3">{t.note}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -60,46 +52,34 @@ export function ABFromStats() {
   return <ArmCompare memory={s.data.ab.memory} control={s.data.ab.control} scope="everyone" />;
 }
 
-export function LessonsFeed() {
+export function LessonsFeed({ limit = 4 }: { limit?: number }) {
   const s = useStats();
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(id);
-  }, []);
+  const now = useNow(60_000);
 
-  if (s.status === "error") return <ErrorState title="Recent lessons are unavailable right now" detail={s.error.message} onRetry={s.reload} />;
+  if (s.status === "error") return <ErrorState compact title="Recent lessons are unavailable right now" detail={s.error.message} onRetry={s.reload} />;
   if (s.status === "loading")
     return (
       <ul className="space-y-px" aria-busy>
-        {Array.from({ length: 4 }, (_, i) => (
+        {Array.from({ length: 3 }, (_, i) => (
           <li key={i} className="card p-5"><Skeleton className="h-4 w-4/5" /><Skeleton className="mt-3 h-3 w-40" /></li>
         ))}
       </ul>
     );
-  const lessons = s.data.recentLessons;
-  if (!lessons.length) return <EmptyState title="No lessons yet">Lessons appear after the first rated matches have been read.</EmptyState>;
+  const lessons = s.data.recentLessons.slice(0, limit);
+  if (!lessons.length) return <EmptyState title="No lessons yet">They appear after the first rated matches.</EmptyState>;
 
   return (
     <ol className="divide-y divide-[var(--line)] overflow-hidden rounded-[var(--radius-card)] bg-ink-1 hairline">
       {lessons.map((l, i) => (
-        <li key={`${l.createdAt}-${i}`} className="grid gap-3 p-5 md:grid-cols-[1fr_auto] md:items-center md:gap-8">
-          <p className="flex gap-2.5 text-[0.98rem] text-chalk">
-            <span aria-hidden className="font-display text-xl font-extrabold leading-[1.1] text-flare">“</span>
-            <span>{l.text}</span>
-          </p>
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
-            <time dateTime={l.createdAt} className="mono text-xs text-chalk-3">{now ? fmtAgo(l.createdAt, now) : " "}</time>
+        <li key={`${l.createdAt}-${i}`} className="p-4 md:p-5">
+          <p className="text-[0.95rem] leading-snug text-chalk">&ldquo;{cleanMemoryText(l.text)}&rdquo;</p>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <time dateTime={l.createdAt} className="text-xs text-chalk-3">{now ? fmtAgo(l.createdAt, now) : " "}</time>
             {l.blobId ? (
-              <a href={walruscanBlob(l.blobId)} target="_blank" rel="noopener noreferrer" className="chip" aria-label={`Open blob ${l.blobId} on Walruscan`}>
-                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-ok" />
-                {shortId(l.blobId, 7, 4)}
-                <IconExternal size={12} />
-              </a>
+              <BlobChip blobId={l.blobId} tone="ok" />
             ) : (
-              <span className="chip" title="Written to the relayer; Walrus certificate pending">
-                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-warn" /> pending
+              <span className="chip !h-[22px]" title="Saved; the Walrus certificate is still pending">
+                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-warn" /> Saving to Walrus
               </span>
             )}
           </div>

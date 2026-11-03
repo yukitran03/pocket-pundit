@@ -1,5 +1,6 @@
 // Shared API contract between the web UI (app/(site), components) and the API routes (app/api).
 // Keep this file free of server-only imports so client components can use it.
+import { BRAND } from "./brand.ts";
 
 export type Arm = "memory" | "control";
 export type Rating = "loved" | "fine" | "bailed" | "skipped";
@@ -183,4 +184,4 @@ export interface NewMemoryBody {
   supersedes?: string; // blobId of the memory this one corrects
 }
 
-export const BOT_URL = "https://t.me/finder_matching_bot";
+export const BOT_URL = BRAND.botUrl;

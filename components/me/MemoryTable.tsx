@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MemoryRow, RecallResponse } from "@/lib/contract";
 import { recall } from "@/lib/client/api";
-import { fmtDateTime, shortId } from "@/lib/client/format";
+import { cleanMemoryText, fmtDateTime, shortId } from "@/lib/client/format";
 import { lifeLeft, suiscanObject, walruscanBlob } from "@/lib/client/chain";
 import { IconExternal, IconSearch, IconX } from "@/components/site/Icons";
 import { ErrorState, Skeleton } from "@/components/site/States";
@@ -78,7 +78,7 @@ export function MemoryTable({
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Recall: “late goals”, “Como”, “kickoff”…"
+            placeholder="Search: late goals, Como…"
             className="field !pl-9 !pr-9"
             autoComplete="off"
             spellCheck={false}
@@ -106,7 +106,7 @@ export function MemoryTable({
       ) : (
         <>
           {/* table ≥ md */}
-          <div className="hidden max-h-[560px] overflow-auto md:block">
+          <div className="hidden max-h-[560px] overflow-auto md:block" data-lenis-prevent>
             <table className="table">
               <caption className="sr-only">Your memories</caption>
               <thead className="sticky top-0 z-10 bg-ink-1">
@@ -115,7 +115,7 @@ export function MemoryTable({
                   <th scope="col">Memory</th>
                   <th scope="col">Created</th>
                   <th scope="col">Status</th>
-                  <th scope="col" className="num">End epoch</th>
+                  <th scope="col" className="num">Stored until</th>
                   <th scope="col">Links</th>
                 </tr>
               </thead>
@@ -128,17 +128,17 @@ export function MemoryTable({
                       <td><KindTag kind={m.kind} /></td>
                       <td className="max-w-[28rem]">
                         <button type="button" className="text-left text-chalk hover:underline hover:decoration-[var(--flare)] hover:underline-offset-4" onClick={() => onSelect(sel ? null : key)} aria-pressed={sel}>
-                          {m.text}
+                          {cleanMemoryText(m.text)}
                         </button>
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           {citedKeys.has(key) ? <span className="chip !h-5 !text-[0.65rem] !text-flare">cited tonight</span> : null}
                           {distance !== null ? <span className="chip !h-5 !text-[0.65rem]">match {Math.round((1 - distance) * 100)}%</span> : null}
                         </div>
                       </td>
-                      <td className="mono whitespace-nowrap text-xs text-chalk-3">{fmtDateTime(m.createdAt, tz)}</td>
+                      <td className="whitespace-nowrap text-xs text-chalk-3">{fmtDateTime(m.createdAt, tz)}</td>
                       <td><StatusPill status={m.status} /></td>
                       <td className="num mono text-xs">
-                        {m.endEpoch ?? "–"}
+                        {m.endEpoch ?? <span className="text-chalk-4">not yet</span>}
                         {m.endEpoch !== null && life < 1 ? <span className="block text-[0.65rem] text-warn">{life <= 0 ? "expired" : "expiring"}</span> : null}
                       </td>
                       <td><Links m={m} /></td>
@@ -161,11 +161,11 @@ export function MemoryTable({
                     {distance !== null ? <span className="chip !h-5 !text-[0.65rem]">match {Math.round((1 - distance) * 100)}%</span> : null}
                   </div>
                   <button type="button" className="mt-2 text-left text-[0.95rem] text-chalk" onClick={() => onSelect(sel ? null : key)} aria-pressed={sel}>
-                    {m.text}
+                    {cleanMemoryText(m.text)}
                   </button>
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-chalk-3">
-                    <span className="mono">{fmtDateTime(m.createdAt, tz)}</span>
-                    {m.endEpoch !== null ? <span className="mono">end epoch {m.endEpoch}</span> : null}
+                    <span>{fmtDateTime(m.createdAt, tz)}</span>
+                    {m.endEpoch !== null ? <span>stored until epoch {m.endEpoch}</span> : null}
                     <Links m={m} />
                   </div>
                 </li>
@@ -185,8 +185,8 @@ function Links({ m }: { m: MemoryRow }) {
   return (
     <span className="flex flex-wrap gap-1.5">
       {wal && m.blobId ? (
-        <a href={wal} target="_blank" rel="noopener noreferrer" className="chip" aria-label={`Blob ${m.blobId} on Walruscan`}>
-          Walruscan <span className="text-chalk-4">{shortId(m.blobId, 4, 3)}</span> <IconExternal size={11} />
+        <a href={wal} target="_blank" rel="noopener noreferrer" className="chip" aria-label={`Blob ${m.blobId} on Walruscan`} title={m.blobId}>
+          Walruscan <span className="chip-id text-chalk-4">{shortId(m.blobId, 4, 3)}</span> <IconExternal size={11} />
         </a>
       ) : null}
       {sui ? (

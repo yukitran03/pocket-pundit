@@ -1,4 +1,6 @@
-# Match Finder: design notes
+# Pocket Pundit: design notes
+
+The product name, tagline and bot link live in `lib/brand.ts` (`BRAND`). UI code never hard-codes them, so a rename is a one-file change.
 
 The direction for the web front end, and the tokens and specs that keep it consistent.
 The code uses these names: `app/globals.css` holds the tokens, `components/**` holds the inventory, and `components/three/**` holds the scenes.
@@ -12,6 +14,7 @@ The code uses these names: `app/globals.css` holds the tokens, `components/**` h
 | https://statsbomb.com/ (Hudl) | A display family plus a matching condensed face for data labels, and data shown as precise, quiet marks. |
 | https://theanalyst.com/ (Opta Analyst) | Scorelines written as `3–1`, percentages to one decimal place, and data headlines that put the number first. |
 | https://vercel.com/ (Geist) | Elevation drawn with a 1px inset ring plus a soft shadow instead of a border, and a strict surface ladder. |
+| https://www.yuusuke.work/ | The idea of a burning-paper dissolve, a gooey (blur + alpha threshold) title morph, smooth scrolling and soft reveals. Looked at for the idea only; the shader, the morph and every line of code here were written from scratch, and no text, image or asset was taken. |
 | https://threejs-journey.com/ | Using 3D as atmosphere behind real content rather than as the content, plus a mono face for technical strings. |
 | Awwwards "FEVER" case study (https://www.awwwards.com/case-study-fever.html) | Abstract, data-driven 3D for football events: each match event becomes a light mark, not an illustration. |
 
@@ -64,6 +67,7 @@ Memory-kind palette (categorical, all-pairs validated on `#0c1a14`, always paire
 | lesson | `#008300` green | octahedron |
 | limit | `#d55181` magenta | torus (a boundary) |
 | taste / system | `#83958a` chalk-3 (folded into "Other") | small tetrahedron |
+| brief ("Locked brief", not taste) | `#e2d6b4` parchment | hexagonal seal |
 
 Validation was run with the dataviz validator (`--mode dark --surface #0c1a14`):
 - flare and steel: CVD ΔE 27.3 and normal ΔE 34.6, both passing.
@@ -93,13 +97,15 @@ Numbers in tables, axes, kickoffs and IDs use `font-variant-numeric: tabular-num
 ### Spacing, radius, elevation
 
 - Spacing runs on a 4px base: 4, 8, 12, 16, 24, 32, 48, 64, 96 and 128. Sections are separated by `clamp(72px, 10vw, 144px)`. The side gutter is 16px on phones, 24px on tablets and 40px on desktop, and the max content width is 1280px.
+- Chips use the text face (Archivo 500, 0.75rem). Only IDs you could paste into an explorer use `.chip-id` (JetBrains Mono 0.7rem, shortened with an ellipsis, full value in `title`).
 - Radius is 4px on chips and pills, 10px on inputs and buttons, and 16px on cards. Pitch lines have square corners.
 - Elevation is `inset 0 0 0 1px var(--line)` plus `0 24px 48px -24px rgb(0 0 0 / .6)`. We never use borders and shadows together.
 
 ## 4. Component inventory
 
 - **Site:** `Header` (sticky, blurred ink), `Footer`, `Logo` (a centre-circle mark with a recall node), `SectionHead` (rail index + title + lede), `ExternalLink`, `DataSourceBadge` (states that data is Demo, Sample fallback or Live).
-- **Pick:** `PickCard` (kickoff in the user's time zone, competition and stage, teams and score, `ScoreBar` for the 0–100 worth-watching score, reasons, `<details>` cited memories with walruscan links, rating badge, `DramaBreakdown`). Blind mode: on unrated picks the memories are folded behind "Reveal why", so the A/B stays blind.
+- **Pick:** `PickCard` reads top to bottom: teams (display face, two lines, no score placeholder before kick-off), kick-off time with a relative hint ("in 2 h", "Live now", "Full time"), competition, one `Meter` for worth-watching (flare for memory picks, steel for control, chalk while blind), up to three reasons, a single "Shaped by N memories on Walrus" disclosure (one-line quotes with a blob chip each), then a quiet status row: sample label, arm badge and `LockChip` ("Locked on Walrus 2 h before kick-off", linking to the brief blob when `Pick.lock.blobId` is set). Blind mode: on unrated picks the memories stay folded and opening them warns that it unblinds the pick. Finished picks add the rating and a compact drama line.
+- **Landing:** `HowItWorks` (3 steps + sample card), `Features` (six time-savers with their commands), `TonightBoard` (live `/api/tonight`: ranked list + spoiler-free replays + CTA), `LiveNumbers` / `ABFromStats` / `LessonsFeed`, `Ownership`, `Faq`.
 - **Charts** (SVG, server-renderable, with hover titles and a text table):
   - `ArmCompare`: mean rating dot with a 95% CI whisker on a 0–2 axis, plus grouped bars of the rating mix. It adds an honest-n note.
   - `DivergingBars`: taste weights from −1 to 1, with the value at the tip and the evidence count.
@@ -155,8 +161,21 @@ Numbers in tables, axes, kickoffs and IDs use `font-variant-numeric: tabular-num
 - `NEXT_PUBLIC_USE_MOCK=1` serves fixtures and shows a "Demo data" badge.
 - In development only, an unreachable API (network error, non-JSON 404, or 5xx) falls back to fixtures with a "Sample data · API offline" badge. A JSON 4xx is a real answer: a bad token or unknown user shows the "get a fresh link" page.
 - Production shows live data, skeletons while loading, and error states with retry. It never shows fixtures.
-- The landing page's Day 1 / Day 7 card and strip are an illustrative sample, and the page labels them that way.
+- The landing page's sample pick card and Day 1 / Day 7 tiles are an illustrative sample, and the page labels them that way.
+- The public Tonight board (`/api/tonight`) is the one exception to "never fixtures in production": if the request fails, times out (15 s) or returns an unexpected shape, it shows `fixtureTonight()` with a "Sample · live feed unavailable" badge, so the landing page is never blank. A real but empty answer is shown as an empty state, never replaced by the sample.
+- Spoiler-free means the score is not in the DOM until the viewer asks for it (`BurnReveal` renders it only after the click).
 
 ## 8. Optional contract additions (backward compatible)
 
 - `MeResponse.currentWalrusEpoch?: number`: the current Walrus epoch, so the taste room can dim memories exactly. Without it, the UI estimates the epoch from the epoch-1 date and shows "≈".
+
+## 9. Motion
+
+Every effect has a reduced-motion path and none of them carries content on its own.
+
+| Effect | Where | What it does | prefers-reduced-motion / no WebGL |
+|---|---|---|---|
+| Burn dissolve (`components/fx/burn.ts`, `BurnReveal`) | "Reveal score" on last night's replays | Redraws the hatched cover into a 2D canvas and burns it away from the click point: a raw WebGL 1 fragment shader with value-noise fbm for the ragged front, a scorch band ahead of it, a white-hot line on a flare glow at the edge and a few sparks behind. About 1.5 s, one context per reveal, released afterwards. No three.js. | Instant reveal. Any shader or context failure also reveals instantly. Focus moves to the score either way. |
+| Gooey morph (`GooeyWords`) | Hero headline: "your evening." → "staying up for." → "the highlights." | Outgoing and incoming phrases cross-blur under an SVG alpha-threshold filter, so the letters melt into each other. Filter only applied during the 0.9 s morph (3.2 s hold); phrases share one grid cell, so no layout shift. The h1 keeps the real sentence in an sr-only span; the animated layer is aria-hidden. | Static first phrase. Also pauses while off-screen or the tab is hidden. |
+| Smooth scroll (Lenis, MIT) | Landing and /proof | Wheel and trackpad smoothing, anchor links honour `scroll-padding-top`. Nested scrollers opt out with `data-lenis-prevent`. Not mounted on /me. | Off. Also off on touch-first devices (`pointer: coarse`). |
+| Section reveal (`ScrollReveal`) | Blocks marked `data-reveal` | Blocks still below the fold after hydration fade up 22px once; the rail line next to each section index draws itself. Server HTML is always visible. | Nothing hidden, nothing moves. |

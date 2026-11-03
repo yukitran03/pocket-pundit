@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
+import { BRAND } from "@/lib/brand";
 
-export const alt = "Match Finder: 400 fixtures tonight, three worth your evening. A football agent with memory on Walrus, proven on Sui mainnet.";
+export const alt = `${BRAND.name}: 400 fixtures tonight, three worth your evening. A Telegram bot that picks football matches for you, spoiler-free, and learns your taste.`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -66,7 +67,7 @@ export default async function OpengraphImage() {
             <div style={{ width: 40, height: 40, borderRadius: 999, border: "4px solid #eef3ec", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ width: 10, height: 10, borderRadius: 999, background: "#eef3ec", display: "flex" }} />
             </div>
-            <div style={{ fontFamily: display, fontSize: 38, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", display: "flex" }}>Match Finder</div>
+            <div style={{ fontFamily: display, fontSize: 38, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", display: "flex" }}>{BRAND.name}</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", fontFamily: display, fontWeight: 800, fontSize: 92, lineHeight: 0.94 }}>
             <span style={{ display: "flex" }}>400 fixtures</span>
@@ -78,8 +79,8 @@ export default async function OpengraphImage() {
             <span style={{ display: "flex" }}>your evening.</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 24, color: "#b9c6bc" }}>
-            <span style={{ display: "flex" }}>Memories on Walrus · Blind A/B tested</span>
-            <span style={{ display: "flex" }}>Proven on Sui mainnet via Tatum</span>
+            <span style={{ display: "flex" }}>Your football pundit, in Telegram</span>
+            <span style={{ display: "flex" }}>Spoiler-free picks, in your time zone</span>
           </div>
         </div>
       </div>

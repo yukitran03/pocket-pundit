@@ -1,29 +1,32 @@
 import type { Metadata } from "next";
+import { BRAND } from "@/lib/brand";
 import { ProofView } from "@/components/proof/ProofView";
+import { ScrollReveal, SmoothScroll } from "@/components/fx/Motion";
 
 export const metadata: Metadata = {
   title: "On-chain proof",
-  description: "Verify Match Finder's memories on Sui mainnet: the MemWal account, its delegate keys, and every Walrus Blob object, read live via Tatum.",
+  description: `Check ${BRAND.name}'s memories on Sui mainnet: the account that owns them, its keys, and every Walrus blob, read live through Tatum.`,
 };
 
 const PROVES = [
-  ["Account object", "The MemWalAccount exists on Sui mainnet and is owned by a single address. Memory is not a row in our database: it has an on-chain owner."],
-  ["Active flag", "The account is live and can authorise reads and writes. An inactive account would stop all recall."],
-  ["Delegate keys", "The keys allowed to act for the account, each labelled. If a key isn’t listed here, it can’t write memories."],
-  ["Epoch and checkpoint", "The page read fresh chain state just now, through Tatum’s gRPC and GraphQL gateways, not a cached snapshot."],
-  ["Blob objects vs relayer", "Every memory the agent says it wrote should have a Walrus Blob object on-chain. Matched means it does. Missing is usually a write still waiting for certification."],
-  ["end_epoch", "How long Walrus has committed to storing each blob. It is why memories dim in the taste room as they approach expiry."],
+  ["Account", "The memories belong to an account on Sui mainnet, and that account is active."],
+  ["Keys", "Only the keys listed here can write memories for the account. Each one is labelled."],
+  ["Epoch and checkpoint", "This page read fresh chain state just now, through Tatum, not a cached copy."],
+  ["Matched vs missing", "Every memory the agent says it saved should have a Walrus blob on Sui. Missing usually means a write is still being certified."],
+  ["Locked briefs", "Each evening's picks are written down before kick-off, so they can't be edited after the result is known."],
+  ["Storage end", "How long Walrus has committed to keep each blob. Memories fade on your dashboard as that date gets close."],
 ];
 
 export default function ProofPage() {
   return (
     <div className="shell pt-10 md:pt-16">
+      <SmoothScroll />
       <div className="grid gap-x-10 gap-y-6 lg:grid-cols-12">
         <div className="lg:col-span-8">
           <p className="micro">Public · no wallet needed</p>
-          <h1 className="display-l mt-4">Don’t trust us. Check the chain.</h1>
+          <h1 className="display-l mt-4">Don’t take our word for it. Check the chain.</h1>
           <p className="lede mt-5 max-w-2xl">
-            Match Finder’s memories live on Walrus mainnet and are owned by a MemWal account on Sui. This page reads that state live through Tatum and lines it up against what the agent believes it stored.
+            {BRAND.name} keeps what it learns on Walrus mainnet, owned by an account on Sui. This page reads that state live through Tatum and compares it with what the agent says it saved.
           </p>
         </div>
       </div>
@@ -34,11 +37,11 @@ export default function ProofPage() {
 
       <section className="mt-16 md:mt-24" aria-labelledby="proves-h">
         <div className="grid gap-x-10 gap-y-6 lg:grid-cols-12">
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-4" data-reveal>
             <p className="micro"><span className="text-flare">Why it matters</span></p>
-            <h2 id="proves-h" className="display-m mt-2">What each item proves</h2>
+            <h2 id="proves-h" className="display-m mt-2">What each part proves</h2>
           </div>
-          <dl className="grid gap-px overflow-hidden rounded-[var(--radius-card)] bg-[var(--line)] sm:grid-cols-2 lg:col-span-8">
+          <dl className="grid gap-px overflow-hidden rounded-[var(--radius-card)] bg-[var(--line)] sm:grid-cols-2 lg:col-span-8" data-reveal>
             {PROVES.map(([k, v]) => (
               <div key={k} className="bg-ink-1 p-5">
                 <dt className="font-semibold">{k}</dt>
@@ -48,6 +51,7 @@ export default function ProofPage() {
           </dl>
         </div>
       </section>
+      <ScrollReveal />
     </div>
   );
 }

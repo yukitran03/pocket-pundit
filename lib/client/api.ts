@@ -11,6 +11,7 @@ import type {
   RecallResponse,
   SettingsBody,
   StatsResponse,
+  TonightResponse,
 } from "@/lib/contract";
 
 export type DataSource = "live" | "mock" | "fallback";
@@ -83,7 +84,7 @@ async function request<T>(path: string, init: RequestInit | undefined, fixture: 
   } catch (err) {
     if ((err as Error)?.name === "AbortError") throw err;
     if (devFallbackAllowed(err)) {
-      console.warn(`[match-finder] ${path} unavailable in development, showing labelled sample data.`, err);
+      console.warn(`[web] ${path} unavailable in development, showing labelled sample data.`, err);
       return { data: await fixture(), source: "fallback" };
     }
     throw err;
@@ -102,6 +103,28 @@ function checkMockToken(token: string) {
 
 export function getStats(signal?: AbortSignal) {
   return request<StatsResponse>("/api/stats", undefined, async () => (await fixtures()).FIXTURE_STATS, signal);
+}
+
+/**
+ * Public board for anyone: GET /api/tonight?tz=… (the agent with memory off).
+ * Unlike the other calls, this one falls back to a labelled sample in every environment when the
+ * request fails, times out or returns an unexpected shape, because the landing page must never be
+ * blank. The UI shows a "Sample" badge whenever source is "fallback". A real but empty answer
+ * (a quiet night) is shown as it is, never replaced by the sample.
+ */
+export async function getTonight(tz: string, signal?: AbortSignal): Promise<ApiResult<TonightResponse>> {
+  const sample = async () => (await fixtures()).fixtureTonight(tz);
+  const timeout = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(15_000) : undefined;
+  const combined = signal && timeout && "any" in AbortSignal ? AbortSignal.any([signal, timeout]) : (signal ?? timeout);
+  try {
+    const r = await request<TonightResponse>(`/api/tonight?${q({ tz })}`, undefined, sample, combined);
+    if (!Array.isArray(r.data?.tonight) || !Array.isArray(r.data?.replays)) throw new Error("Unexpected /api/tonight response");
+    return r;
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    console.warn("[web] /api/tonight unavailable, showing the labelled sample.", err);
+    return { data: await sample(), source: "fallback" };
+  }
 }
 
 export function getProof(signal?: AbortSignal) {

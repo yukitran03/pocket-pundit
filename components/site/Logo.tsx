@@ -1,3 +1,5 @@
+import { BRAND } from "@/lib/brand";
+
 /** Centre-circle mark: a chalk circle and spot, with one recalled memory (flare) linked to the spot. */
 export function LogoMark({ size = 28, className }: { size?: number; className?: string }) {
   return (
@@ -14,9 +16,9 @@ export function LogoMark({ size = 28, className }: { size?: number; className?: 
 export function Wordmark() {
   return (
     <span className="inline-flex items-center gap-2.5">
-      <LogoMark />
-      <span className="font-display text-[1.35rem] font-extrabold uppercase leading-none tracking-[0.02em]" style={{ fontVariationSettings: '"opsz" 30' }}>
-        Match&nbsp;Finder
+      <LogoMark className="shrink-0" />
+      <span className="whitespace-nowrap font-display text-[1.35rem] font-extrabold uppercase leading-none tracking-[0.02em]" style={{ fontVariationSettings: '"opsz" 30' }}>
+        {BRAND.name}
       </span>
     </span>
   );

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo, Big_Shoulders, JetBrains_Mono } from "next/font/google";
+import { BRAND } from "@/lib/brand";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import "./globals.css";
@@ -29,18 +30,17 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? (process.env.VERCEL_PROJECT
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Match Finder: tonight's three matches, picked from your memory",
-    template: "%s · Match Finder",
+    default: `${BRAND.name}: three matches worth your evening, picked for you`,
+    template: `%s · ${BRAND.name}`,
   },
-  description:
-    "A personal Telegram agent that picks the 3 football matches most worth your evening out of 400+ fixtures. It learns from your ratings, stores what it learned as encrypted memories on Walrus, and proves ownership on Sui mainnet.",
-  applicationName: "Match Finder",
-  keywords: ["football", "Telegram bot", "Walrus", "Sui", "Tatum", "agent memory", "personalisation"],
+  description: `${BRAND.name} is a Telegram bot for football fans. Every evening it picks the three matches most worth your time out of 400+ fixtures, keeps scores off your screen, reminds you before kick-off and pings you when a game turns. It learns your taste and keeps it encrypted on Walrus.`,
+  applicationName: BRAND.name,
+  keywords: ["football", "what to watch tonight", "spoiler-free", "Telegram bot", "match picks", "highlights", "Walrus", "Sui"],
   openGraph: {
     type: "website",
-    siteName: "Match Finder",
-    title: "Match Finder: 400 fixtures tonight, three worth your evening",
-    description: "A football agent with a memory you own. It learns from every rating, stores memories on Walrus and proves it on Sui mainnet.",
+    siteName: BRAND.name,
+    title: `${BRAND.name}: 400 fixtures tonight, three worth your evening`,
+    description: `${BRAND.tagline.replace(/\.$/, "")}. Spoiler-free, in your time zone, in Telegram.`,
   },
   twitter: { card: "summary_large_image" },
 };

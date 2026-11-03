@@ -9,7 +9,7 @@ export class SceneBoundary extends Component<{ children: ReactNode; onError?: ()
     return { failed: true };
   }
   componentDidCatch(err: unknown) {
-    console.warn("[match-finder] 3D scene disabled, showing the static fallback.", err);
+    console.warn("[web] 3D scene disabled, showing the static fallback.", err);
     this.props.onError?.();
   }
   render() {

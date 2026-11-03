@@ -83,13 +83,13 @@ function DashboardView({ data, source, token, mutate }: { data: MeResponseExt; s
             <p className="micro flex flex-wrap items-center gap-2">
               <span>Private dashboard</span>
               <span aria-hidden className="h-px w-6 bg-line-strong" />
-              <span className="normal-case tracking-normal text-chalk-3">{user.namespace}</span>
+              <span className="chip chip-id normal-case" title="Your anonymous memory namespace">{user.namespace}</span>
             </p>
             <h1 className="display-l mt-4">{user.name}’s evenings</h1>
             <ul className="mt-5 flex flex-wrap gap-2 text-sm">
               <li className="chip">{tzLabel(user.tz)} time</li>
               <li className="chip">Brief at {fmtHour(user.briefHour)}</li>
-              <li className="chip">Window {fmtHour(user.windowStart)}–{fmtHour(user.windowEnd)}</li>
+              <li className="chip">Watches {fmtHour(user.windowStart)} to {fmtHour(user.windowEnd)}</li>
               <li className="chip">Joined {fmtDay(user.joinedAt, user.tz)}</li>
               <li><DataSourceBadge source={source} /></li>
             </ul>
@@ -99,15 +99,15 @@ function DashboardView({ data, source, token, mutate }: { data: MeResponseExt; s
               <p className="micro mb-3">Day</p>
               <p className="font-display text-[clamp(4.5rem,3rem+6vw,8rem)] font-extrabold leading-[0.78] text-flare">{user.dayIndex}</p>
             </div>
-            <dl className="mb-1 space-y-2 border-l border-line pl-5 text-sm">
-              <div><dt className="text-xs text-chalk-3">Memories</dt><dd className="mono text-chalk">{memories.length}</dd></div>
-              <div><dt className="text-xs text-chalk-3">Rated picks</dt><dd className="mono text-chalk">{history.filter((p) => p.rating).length}</dd></div>
+            <dl className="mb-1 space-y-3 border-l border-line pl-5">
+              <div className="flex flex-col-reverse"><dt className="text-xs text-chalk-3">memories</dt><dd className="font-display text-3xl font-extrabold leading-none">{memories.length}</dd></div>
+              <div className="flex flex-col-reverse"><dt className="text-xs text-chalk-3">rated picks</dt><dd className="font-display text-3xl font-extrabold leading-none">{history.filter((p) => p.rating).length}</dd></div>
             </dl>
           </div>
         </div>
         <nav aria-label="Dashboard sections" className="shell">
           <ul className="-mb-px flex gap-1 overflow-x-auto pb-px text-sm [scrollbar-width:none]">
-            {[["tonight", "Tonight"], ["progress", "Since day 1"], ["learned", "What it learned"], ["ab", "A/B"], ["memory", "Memory wall"], ["teach", "Teach it"], ["settings", "Settings"]].map(([id, l]) => (
+            {[["tonight", "Tonight"], ["progress", "Since day 1"], ["learned", "Your taste"], ["ab", "A/B"], ["memory", "Memory"], ["teach", "Teach"], ["settings", "Settings"]].map(([id, l]) => (
               <li key={id}><a href={`#${id}`} className="block whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-chalk-3 hover:border-line-strong hover:text-chalk">{l}</a></li>
             ))}
           </ul>
@@ -115,7 +115,7 @@ function DashboardView({ data, source, token, mutate }: { data: MeResponseExt; s
       </header>
 
       {/* ---------------------------------------------------------- tonight */}
-      <Block id="tonight" index="01" title="Tonight’s picks" note="Arms stay hidden until you rate in Telegram, so the A/B stays blind.">
+      <Block id="tonight" index="01" title="Tonight’s picks" note="Which pick ran with memory off stays hidden until you rate it in Telegram.">
         {todaySorted.length ? (
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {todaySorted.map((p) => <PickCard key={p.id} pick={p} tz={user.tz} />)}
@@ -126,7 +126,7 @@ function DashboardView({ data, source, token, mutate }: { data: MeResponseExt; s
       </Block>
 
       {/* ---------------------------------------------------------- progress */}
-      <Block id="progress" index="02" title="Since day 1" note="Where each day’s picks kicked off, against your window. This is memory changing the product.">
+      <Block id="progress" index="02" title="Since day 1" note="Where each day’s picks kicked off, against the hours you watch.">
         {strip.length ? (
           <div className="space-y-5">
             {days.length > 1 ? (
@@ -142,7 +142,7 @@ function DashboardView({ data, source, token, mutate }: { data: MeResponseExt; s
                       <p className="mt-2 font-display text-4xl font-extrabold leading-none">
                         {ps.filter(inWindow).length} <span className="text-chalk-3">of {ps.length}</span>
                       </p>
-                      <p className="mt-1 text-sm text-chalk-3">picks inside your viewing window</p>
+                      <p className="mt-1 text-sm text-chalk-3">picks inside your watching hours</p>
                     </div>
                   );
                 })}
@@ -152,7 +152,7 @@ function DashboardView({ data, source, token, mutate }: { data: MeResponseExt; s
             {history.length ? (
               <details className="group">
                 <summary className="btn btn-ghost w-full justify-between sm:w-auto">
-                  <span>Past picks with ratings and drama ({history.length})</span>
+                  <span>Past picks, with your ratings ({history.length})</span>
                   <IconChevron size={16} className="transition-transform group-open:rotate-90" />
                 </summary>
                 <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -167,7 +167,7 @@ function DashboardView({ data, source, token, mutate }: { data: MeResponseExt; s
       </Block>
 
       {/* ---------------------------------------------------------- learned */}
-      <Block id="learned" index="03" title="What it has learned" note="Taste weights from −1 (steers away) to +1 (leans in), each backed by memories." aside={<DivergingLegend />}>
+      <Block id="learned" index="03" title="What your pundit has learned" note="Each weight runs from −1 (steers away) to +1 (leans in) and is backed by your memories." aside={<DivergingLegend />}>
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <DivergingBars title="Competitions" weights={taste.competitions} empty="No competition preferences yet." />
           <DivergingBars title="Teams" weights={taste.teams} empty="No team preferences yet." />
@@ -177,12 +177,12 @@ function DashboardView({ data, source, token, mutate }: { data: MeResponseExt; s
       </Block>
 
       {/* ---------------------------------------------------------- A/B */}
-      <Block id="ab" index="04" title="Your A/B" note="Your ratings of memory picks vs the hidden control pick.">
+      <Block id="ab" index="04" title="Memory vs memory off" note="Your ratings of memory picks against the hidden memory-off pick.">
         <ArmCompare memory={ab.memory} control={ab.control} scope="you" />
       </Block>
 
       {/* ---------------------------------------------------------- memory wall */}
-      <Block id="memory" index="05" title="The memory wall" note="Everything it remembers about you, as stored on Walrus. Search runs a real recall.">
+      <Block id="memory" index="05" title="Your memory" note="Everything your pundit remembers about you, as stored on Walrus. Search runs a real recall.">
         <div className="space-y-5">
           <div ref={roomRef}>
             <TasteRoom items={items} currentEpoch={currentEpoch} epochEstimated={epochEstimated} tz={user.tz} selected={selected} onSelect={setSelected} highlighted={hits} />

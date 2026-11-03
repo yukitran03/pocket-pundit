@@ -17,7 +17,10 @@ import type {
   Pick,
   ProofResponse,
   RecallResponse,
+  ReplayMatch,
   StatsResponse,
+  TonightMatch,
+  TonightResponse,
   WriteStatus,
 } from "@/lib/contract";
 
@@ -29,6 +32,7 @@ const suiscan = (o: string) => `https://suiscan.xyz/mainnet/object/${o}`;
 type M = [id: string, kind: MemoryKind, text: string, createdAt: string, status: WriteStatus, blobId: string | null, objectId: string | null, endEpoch: number | null];
 
 const RAW_MEMORIES: M[] = [
+  ["m00", "brief", "[brief] 2026-11-03 · Tonight's picks, locked before kick-off: Buriram United v Shanghai Port (19:00); Club Brugge v Bayer Leverkusen (00:45); Real Madrid v Juventus (03:00). Memory-off pick sealed: commit 3f9a1c2b7d4e5f60. tags: kind=brief", "2026-11-03T10:01:12Z", "stored", "Lk7bR2xWq9tYv3MnPzA0cE5hJ8sFgD1uKoXiN6wB4eQ", "0x7d2a91c04be36f58e1a0d9c37b5f2e486a1c90d3e7b24f5a68c1d0e93b7a2f41", 47],
   ["m01", "preference", "Happy to watch Asian club football when it fits my evening. The AFC games have been great.", "2026-11-03T09:12:41Z", "queued", null, null, null],
   ["m02", "lesson", "Gulf-slot AFC games (23:00 my time) land right in the window and have been wild. Rank them up.", "2026-11-02T17:50:12Z", "stored", "z7x30Rzh__JntC5HgP_nPsJDUw8-L18ckHCTs3_r4WE", "0x60e74898a733c428a673fddc8e1e3a6cd5c14ef8b13ae80d441ec67ca4f5539e", 47],
   ["m03", "rating", "Al-Sadd 2–3 Al-Hilal (AFC Champions League Elite): loved. Drama 83, winner in the 88th minute.", "2026-11-02T17:48:03Z", "stored", "S3tTDubMw0rPxQ1wN17fTk-mS9Jl9wt08E3G1VCcHek", "0x49694df285ec5c8ff4e1712b82dcfae63c4659ffa551205617bb8d4f63a3da3c", 47],
@@ -92,6 +96,10 @@ function pick(p: Omit<Pick, "id" | "status"> & { status?: Pick["status"] }): Pic
   return { id: `pk_${p.briefDate.replaceAll("-", "")}_${p.slot}_${pickSeq}`, status: p.status ?? "finished", ...p };
 }
 
+// Tonight's brief (memory m00) was written to Walrus at 17:01 local, before the first kick-off.
+const BRIEF_LOCK = "Lk7bR2xWq9tYv3MnPzA0cE5hJ8sFgD1uKoXiN6wB4eQ";
+const BRIEF_LOCKED_AT = "2026-11-03T10:01:12Z";
+
 export const FIXTURE_TODAY: Pick[] = [
   pick({
     briefDate: "2026-11-03", slot: 1, arm: null, kickoff: "2026-11-03T17:45:00Z",
@@ -105,6 +113,7 @@ export const FIXTURE_TODAY: Pick[] = [
     ],
     cites: cite("m19", "m07", "m06"),
     rating: null, drama: null,
+    lock: { blobId: BRIEF_LOCK, lockedAt: BRIEF_LOCKED_AT, minutesBeforeKickoff: 464 },
   }),
   pick({
     briefDate: "2026-11-03", slot: 2, arm: null, kickoff: "2026-11-03T20:00:00Z",
@@ -118,6 +127,7 @@ export const FIXTURE_TODAY: Pick[] = [
     ],
     cites: [],
     rating: null, drama: null,
+    lock: { blobId: BRIEF_LOCK, lockedAt: BRIEF_LOCKED_AT, minutesBeforeKickoff: 599 },
   }),
   pick({
     briefDate: "2026-11-03", slot: 3, arm: null, kickoff: "2026-11-03T12:00:00Z",
@@ -131,6 +141,7 @@ export const FIXTURE_TODAY: Pick[] = [
     ],
     cites: cite("m02", "m03", "m24"),
     rating: null, drama: null,
+    lock: { blobId: BRIEF_LOCK, lockedAt: BRIEF_LOCKED_AT, minutesBeforeKickoff: 119 },
   }),
 ];
 
@@ -247,8 +258,8 @@ export const FIXTURE_ME: MeResponse = {
       { key: "signal:goalless", label: "Goalless at half-time", weight: -0.71, evidence: 2 },
     ],
     limits: [
-      { key: "limit:kickoff-after-01-weeknight", label: "Kickoff after 01:00, Mon–Thu", weight: -0.92, evidence: 5 },
-      { key: "limit:kickoff-after-03-weekend", label: "Kickoff after 03:00, Fri–Sun", weight: -0.55, evidence: 2 },
+      { key: "limit:kickoff-after-01-weeknight", label: "Kick-off after 01:00, Mon to Thu", weight: -0.92, evidence: 5 },
+      { key: "limit:kickoff-after-03-weekend", label: "Kick-off after 03:00, Fri to Sun", weight: -0.55, evidence: 2 },
       { key: "limit:kickoff-before-19", label: "Kickoff before 19:00", weight: -0.2, evidence: 1 },
     ],
   },
@@ -291,7 +302,7 @@ export const FIXTURE_PROOF: ProofResponse = {
     owner: OWNER,
     active: true,
     delegateKeys: [
-      { label: "Relayer: match-finder server", publicKeyHex: "9c1e5d0b7a43f2e8d6c4b2a0918e7f6d5c4b3a2918e7f6d5c4b3a2918e7f6d5c", suiAddress: "0xdc39b57516a33da1df5a2dbdb19b2f73526afca012746ea13f9ad0cb018b7e36", createdAt: "2026-10-26T08:14:02Z" },
+      { label: "Relayer: app server", publicKeyHex: "9c1e5d0b7a43f2e8d6c4b2a0918e7f6d5c4b3a2918e7f6d5c4b3a2918e7f6d5c", suiAddress: "0xdc39b57516a33da1df5a2dbdb19b2f73526afca012746ea13f9ad0cb018b7e36", createdAt: "2026-10-26T08:14:02Z" },
       { label: "Telegram bot worker", publicKeyHex: "3f7a9b2c4d6e8f0a1b3c5d7e9f1a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6a", suiAddress: "0x18a1416f0bc90d71c33546273bd4df336bb40d74e614ea33b67fdde101ceaff3", createdAt: "2026-10-27T13:40:55Z" },
     ],
   },
@@ -311,6 +322,11 @@ export const FIXTURE_PROOF: ProofResponse = {
   },
   relayer: { memories: 612, namespaces: 24 },
   verified: { matched: 606, missing: 6 },
+  locks: [
+    { date: "2026-11-03", blobId: "Lk7bR2xWq9tYv3MnPzA0cE5hJ8sFgD1uKoXiN6wB4eQ", objectId: "0x7d2a91c04be36f58e1a0d9c37b5f2e486a1c90d3e7b24f5a68c1d0e93b7a2f41", certifiedAt: "2026-11-03T10:01:38Z", firstKickoff: "2026-11-03T12:00:00Z", minutesBefore: 118 },
+    { date: "2026-11-02", blobId: "Hq3vT8nWc1yZr6KsLx0pB7dFj2mGa9uEoYiR5tN4wCe", objectId: "0x3b91e0d27c4a58f6e1b0a9d38c7f2e5146a0b9c2d8e7f3a5b6c1d0e9f8a7b2c4", certifiedAt: "2026-11-02T13:46:05Z", firstKickoff: "2026-11-02T15:00:00Z", minutesBefore: 74 },
+    { date: "2026-11-01", blobId: "Pz5mK2cXv8bNq1WrTj7yLd0sFh3gAe9uRoUi6tM4nBx", objectId: null, certifiedAt: null, firstKickoff: "2026-11-01T13:30:00Z", minutesBefore: null },
+  ],
   checkedAt: "2026-11-03T10:02:48Z",
   links: { account: suiscan(ACCOUNT_ID), owner: `https://suiscan.xyz/mainnet/account/${OWNER}` },
 };
@@ -335,3 +351,36 @@ export function fixtureRecall(q: string): RecallResponse {
 export const SAMPLE_DAY1 = FIXTURE_HISTORY.filter((p) => p.briefDate === "2026-10-28");
 export const SAMPLE_DAY7 = FIXTURE_TODAY;
 export const SAMPLE_TZ = FIXTURE_ME.user.tz;
+
+// ---------------------------------------------------------------- tonight (public board, memory off)
+/**
+ * SAMPLE for GET /api/tonight, used only when that request fails (the UI labels it "Sample").
+ * Kick-offs are generated relative to `now`, so the sample reads like a real evening at any hour.
+ */
+export function fixtureTonight(tz: string, now = Date.now()): TonightResponse {
+  const step = 15 * 60_000;
+  const base = Math.ceil(now / step) * step;
+  const at = (min: number) => new Date(base + min * 60_000).toISOString();
+  const up = (matchId: string, inMin: number, competition: string, stage: string | null, home: string, away: string, score: number, reasons: string[]): TonightMatch => ({
+    matchId, kickoff: at(inMin), competition, stage, home, away, status: "upcoming", minute: null, score, reasons,
+  });
+  const tonight: TonightMatch[] = [
+    up("smp-t1", 75, "AFC Champions League Elite", "League stage", "Buriram United", "Shanghai Port", 88, ["They average 3.1 goals a game between them", "Both need a win to stay in the top eight"]),
+    { matchId: "smp-t2", kickoff: at(-75), competition: "AFC Champions League Elite", stage: "League stage", home: "Al-Ahli", away: "Persepolis", status: "live", minute: 63, score: 85, reasons: ["Level after an hour, with chances at both ends", "Al-Ahli have scored after 75' in four straight"] },
+    up("smp-t3", 300, "UEFA Champions League", "League phase", "Club Brugge", "Bayer Leverkusen", 84, ["Two high-pressing sides, 14+ attempts a game each", "Brugge are unbeaten at home this season"]),
+    up("smp-t4", 435, "UEFA Champions League", "League phase", "Real Madrid", "Juventus", 79, ["Two of the last three meetings were settled after 80'", "Both sit in the top eight"]),
+    up("smp-t5", 435, "UEFA Champions League", "League phase", "Sporting CP", "Galatasaray", 76, ["Both average 2.5+ goals a game", "Galatasaray need a point to go through"]),
+    up("smp-t6", 255, "Saudi Pro League", null, "Al-Ittihad", "Al-Nassr", 74, ["Top-of-table meeting", "Last four meetings: 15 goals"]),
+    up("smp-t7", 150, "A-League Men", null, "Melbourne Victory", "Sydney FC", 66, ["The Big Blue derby", "Both scored in 8 of the last 9"]),
+    up("smp-t8", 660, "Copa Libertadores", "Semi-final, 2nd leg", "Flamengo", "Palmeiras", 64, ["Level on aggregate", "A packed Maracanã"]),
+  ];
+  const ago = (h: number) => new Date(base - h * 3600_000).toISOString();
+  const replays: ReplayMatch[] = [
+    { matchId: "smp-r1", kickoff: ago(9), competition: "Primeira Liga", home: "Sporting CP", away: "Benfica", drama: 92, vibe: ["it swings", "late drama", "goals"], homeScore: 3, awayScore: 3 },
+    { matchId: "smp-r2", kickoff: ago(11), competition: "Premier League", home: "Brentford", away: "Brighton & Hove Albion", drama: 87, vibe: ["late drama", "end to end"], homeScore: 2, awayScore: 3 },
+    { matchId: "smp-r3", kickoff: ago(13), competition: "La Liga", home: "Atlético de Madrid", away: "Villarreal", drama: 78, vibe: ["late drama", "tense"], homeScore: 2, awayScore: 1 },
+    { matchId: "smp-r4", kickoff: ago(17), competition: "AFC Champions League Elite", home: "Urawa Red Diamonds", away: "Ulsan HD", drama: 71, vibe: ["goals", "end to end"], homeScore: 2, awayScore: 2 },
+    { matchId: "smp-r5", kickoff: ago(20), competition: "Ligue 1", home: "Lyon", away: "Lille", drama: 58, vibe: ["tense"], homeScore: 1, awayScore: 1 },
+  ];
+  return { tz, scanned: 412, tonight, replays, updatedAt: new Date(now).toISOString() };
+}

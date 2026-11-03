@@ -88,7 +88,7 @@ export function ArmCompare({ memory, control, scope }: { memory: ArmStats; contr
                       <span
                         className="absolute top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center"
                         style={{ left: pct(s.mean, 2) }}
-                        title={`${a.label}: ${s.mean.toFixed(2)} average from ${s.rated} rated picks${s.lo !== null ? ` (95% interval ${s.lo.toFixed(2)}–${s.hi!.toFixed(2)})` : ""}`}
+                        title={`${a.label}: ${s.mean.toFixed(2)} average from ${s.rated} rated picks${s.lo !== null ? ` (95% interval ${s.lo.toFixed(2)} to ${s.hi!.toFixed(2)})` : ""}`}
                       >
                         <span className="block h-3.5 w-3.5 rounded-full" style={{ background: a.color, boxShadow: "0 0 0 2px var(--ink-1)" }} />
                         <span className={`mono absolute -top-[1.35rem] whitespace-nowrap text-xs font-semibold text-chalk ${s.mean > 1.7 ? "right-0" : "left-1/2 -translate-x-1/2"}`}>{s.mean.toFixed(2)}</span>
@@ -128,7 +128,7 @@ export function ArmCompare({ memory, control, scope }: { memory: ArmStats; contr
                   Avg drama, {a.short.toLowerCase()}
                 </p>
                 <p className="mt-1 font-display text-4xl font-extrabold leading-none">
-                  {stats[a.key].avgDrama === null ? "–" : Math.round(stats[a.key].avgDrama!)}
+                  {stats[a.key].avgDrama === null ? <span className="text-chalk-4">n/a</span> : Math.round(stats[a.key].avgDrama!)}
                   <span className="ml-1 font-sans text-xs font-normal text-chalk-3">/100</span>
                 </p>
               </div>
@@ -139,7 +139,7 @@ export function ArmCompare({ memory, control, scope }: { memory: ArmStats; contr
         {/* --- Panel B: rating mix, share of each arm's picks, 0-based */}
         <div>
           <h3 className="text-[0.95rem] font-semibold">How the picks were rated</h3>
-          <p className="mt-0.5 text-xs text-chalk-3">Share of each arm’s picks. Axis runs 0–{Math.round(shareMax * 100)}%.</p>
+          <p className="mt-0.5 text-xs text-chalk-3">Share of each arm’s picks. Axis runs from 0 to {Math.round(shareMax * 100)}%.</p>
           <div className="mt-5 space-y-4">
             {ratingRows.map((r) => (
               <div key={r.key} className="grid grid-cols-[5.5rem_1fr] items-center gap-3">
@@ -196,8 +196,8 @@ export function ArmCompare({ memory, control, scope }: { memory: ArmStats; contr
                     <td className="num">{s.fine}</td>
                     <td className="num">{s.bailed}</td>
                     <td className="num">{s.skipped}</td>
-                    <td className="num">{sums[a.key].mean?.toFixed(2) ?? "–"}</td>
-                    <td className="num">{s.avgDrama === null ? "–" : s.avgDrama.toFixed(1)}</td>
+                    <td className="num">{sums[a.key].mean?.toFixed(2) ?? "n/a"}</td>
+                    <td className="num">{s.avgDrama === null ? "n/a" : s.avgDrama.toFixed(1)}</td>
                   </tr>
                 );
               })}

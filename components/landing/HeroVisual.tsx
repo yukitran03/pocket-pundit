@@ -47,8 +47,8 @@ export function HeroVisual() {
       {/* Caption: what the picture shows, in words, so the visual is never the only carrier. */}
       <div className="pointer-events-none relative flex flex-col gap-3 px-[var(--gutter)] pt-1 sm:absolute sm:inset-x-0 sm:bottom-0 sm:flex-row sm:items-end sm:justify-between sm:p-5">
         <p className="max-w-xs text-xs text-chalk-2">
-          <span className="mono text-chalk">{stored === null ? "…" : fmtInt(stored)}</span> memories on Walrus. Each evening a few are{" "}
-          <span className="text-flare">recalled</span> and linked to tonight’s pick.
+          Each card is something a pundit has learned about its viewer (<span className="text-chalk">{stored === null ? "…" : fmtInt(stored)}</span> so far). Every evening a few{" "}
+          <span className="text-flare">light up</span> to choose tonight’s pick.
         </p>
         <ul className="flex flex-wrap gap-x-3 gap-y-1.5" aria-label="Memory kinds">
           {PRIMARY_KINDS.map((k) => (

@@ -4,7 +4,7 @@ import type { ReplayMatch, TonightMatch, TonightResponse } from "./contract.ts";
 import { cached } from "./db.ts";
 import { fixturesBetween, liveNow, teamForm, timeline, type Fixture, type TeamForm } from "./feed.ts";
 import { computeDrama } from "./drama.ts";
-import { explain, NOT_ELEVEN_A_SIDE, PRIOR_OF, scoreCandidates } from "./picker.ts";
+import { NOT_ELEVEN_A_SIDE, PRIOR_OF, scoreCandidates, type Candidate } from "./picker.ts";
 
 // Drama tags that tell you a match was worth it without telling you how it ended.
 const VIBE: Record<string, string> = {
@@ -15,16 +15,36 @@ const VIBE: Record<string, string> = {
   "lead-changes": "it swings",
 };
 
+/**
+ * The ranking doesn't depend on the viewer's time zone (the browser formats kick-off times), so it is computed
+ * once per 10 minutes for everyone, and the scheduler warms it.
+ */
 export async function tonightView(tz: string, now = new Date()): Promise<TonightResponse> {
-  const bucket = Math.floor(now.getTime() / 600_000); // 10-minute buckets
-  return cached(`view:tonight:${tz}:${bucket}`, 900, async () => {
-    const [tonight, scanned] = await upcoming(tz, now);
+  const bucket = Math.floor(now.getTime() / 600_000);
+  const v = await cached(`view:tonight:v2:${bucket}`, 900, async () => {
+    const [tonight, scanned] = await upcoming(now);
     const replays = await lastNight(now).catch(() => [] as ReplayMatch[]);
-    return { tz, scanned, tonight, replays, updatedAt: new Date().toISOString() };
+    return { scanned, tonight, replays, updatedAt: new Date().toISOString() };
   });
+  return { tz, ...v };
 }
 
-async function upcoming(tz: string, now: Date): Promise<[TonightMatch[], number]> {
+/** Short, factual reasons for a neutral fan. The row already shows competition and kick-off, so don't repeat them. */
+function publicReasons(c: Candidate): string[] {
+  const out: string[] = [];
+  if (c.f.stage && /final|semi|quarter|round of 16|knockout|play-?off/i.test(c.f.stage)) out.push(`${c.f.stage}: something is on the line.`);
+  if (c.avgGoals !== null && c.avgGoals >= 2.8) out.push(`Both sides average ${c.avgGoals.toFixed(1)} goals a game lately.`);
+  else if (c.hForm && c.aForm && c.exp.tense >= 0.6) out.push("Evenly matched on recent form.");
+  if (c.hForm && c.aForm) {
+    const unbeaten = [c.hForm, c.aForm].filter((t) => t.played >= 4 && t.losses === 0).length;
+    if (unbeaten === 2) out.push("Neither side has lost lately.");
+    else if (c.hForm.wins >= 4 || c.aForm.wins >= 4) out.push(`${c.hForm.wins >= c.aForm.wins ? c.f.home : c.f.away} arrive on a winning run.`);
+  }
+  return out.slice(0, 2);
+}
+
+async function upcoming(now: Date): Promise<[TonightMatch[], number]> {
+  const tz = "UTC"; // only affects memory-driven fields, which the public board doesn't use
   const end = new Date(now.getTime() + 12 * 3600_000);
   const soon = (await fixturesBetween(new Date(now.getTime() + 60_000), end)).filter((f) => f.status === 1);
   const live = await liveNow().catch(() => []);
@@ -55,7 +75,7 @@ async function upcoming(tz: string, now: Date): Promise<[TonightMatch[], number]
       status: isLive ? "live" : "upcoming",
       minute: isLive ? Math.round(minuteOf.get(c.f.matchId) ?? 0) : null,
       score: Math.round(c.base),
-      reasons: explain(c, null, "control").neutral.slice(0, 2),
+      reasons: publicReasons(c),
     });
   }
   return [out, pool.length];

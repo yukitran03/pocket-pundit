@@ -13,6 +13,7 @@ import { buildTaste, lessonMemory, parseMemory, humanKey } from "./taste.ts";
 import type { UserRow } from "./picker.ts";
 import { KNOWN_COMPS } from "./views.ts";
 import { lockLine } from "./lock.ts";
+import { tonightView } from "./tonight.ts";
 
 export interface TickReport {
   memory: { submitted: number; stored: number; failed: number };
@@ -141,6 +142,11 @@ ${escHtml(a.why)}${u.show_scores ? "" : " (Score hidden.)"}`;
           await q(`update users set last_lesson_date = $2 where id = $1`, [u.id, lp.date]);
         });
       }
+    });
+
+    // Keep the public Tonight board warm so the landing page never waits on a cold ranking.
+    await guard("tonight", async () => {
+      await tonightView("UTC", now);
     });
 
     rep.ms = Date.now() - t0;

@@ -33,7 +33,7 @@ export function KickoffStrip({ picks, tz, windowStart, windowEnd, caption }: { p
         <span />
         <div className="relative mb-2 h-5 text-[0.68rem] text-chalk-3" aria-hidden>
           <span className="absolute inset-y-0" style={{ left: x(ws), width: `calc(${x(we)} - ${x(ws)})` }}>
-            <span className="mono absolute -top-0.5 left-1.5 whitespace-nowrap text-chalk-2">your window {fmtHour(ws)}–{fmtHour(we)}</span>
+            <span className="mono absolute -top-0.5 left-1.5 whitespace-nowrap text-chalk-2">your window {fmtHour(ws)} to {fmtHour(we)}</span>
             <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-flare" />
           </span>
         </div>
