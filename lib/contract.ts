@@ -95,6 +95,7 @@ export interface MeResponse {
   memories: MemoryRow[]; // newest first
   ab: { memory: ArmStats; control: ArmStats };
   shares: { username: string; since: string }[];
+  currentWalrusEpoch?: number; // latest Walrus epoch seen on-chain (via Tatum), for expiry countdowns
 }
 
 export interface StatsResponse {

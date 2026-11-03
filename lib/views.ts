@@ -99,6 +99,7 @@ export async function meView(userId: number): Promise<MeResponse | null> {
     memories,
     ab: { memory: armStats(picks.filter((p) => p.arm === "memory")), control: armStats(picks.filter((p) => p.arm === "control")) },
     shares: [],
+    currentWalrusEpoch: [...blobs.values()].reduce((m, b) => Math.max(m, b.certifiedEpoch ?? 0), 0) || undefined,
   };
 }
 
