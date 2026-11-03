@@ -12,6 +12,7 @@
     "@mysten-incubation/memwal": "^0.1.12",
     "@mysten/seal": "^1.5.2",
     "@mysten/sui": "^2.38.0",
+    "@mysten/wallet-standard": "^0.21.36",
     "@neondatabase/serverless": "^1.2.0",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",

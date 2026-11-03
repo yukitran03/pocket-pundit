@@ -13,6 +13,7 @@ import { buildTaste, lessonMemory, parseMemory, humanKey } from "./taste.ts";
 import type { UserRow } from "./picker.ts";
 import { KNOWN_COMPS } from "./views.ts";
 import { lockLine } from "./lock.ts";
+import { stillOwned } from "./own.ts";
 import { tonightView } from "./tonight.ts";
 import { coverageMap } from "./coverage.ts";
 
@@ -63,6 +64,9 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
         const lp = localParts(now, u.tz);
         if (lp.hour < u.brief_hour || raw.last_brief_date === lp.date) continue;
         await guard(`brief ${u.id}`, async () => {
+          if (raw.memwal_account && (await stillOwned(u.id)) === "revoked") {
+            await send(u.chat_id, "🔑 Pocket Pundit's key is no longer on your Walrus Memory account, so I've stopped writing there. New memories go to Pocket Pundit's shared account again; /own to reconnect.");
+          }
           await sendBrief(u, now);
           rep.briefs++;
         });
@@ -196,7 +200,7 @@ async function notifyStored(chatId: number, messageId: number, blobId: string) {
 
 /** A narrative lesson from the user's stored memories + A/B so far (recorded on Walrus, shown on the dashboard). */
 export async function composeLesson(userId: number, date: string): Promise<string | null> {
-  const rows = await q<any>(`select blob_id, text from memory_jobs where user_id = $1 and status = 'stored' and kind in ('rating','preference','limit') order by id`, [userId]);
+  const rows = await q<any>(`select blob_id, text from memory_jobs where user_id = $1 and status = 'stored' and not archived and kind in ('rating','preference','limit') order by id`, [userId]);
   if (!rows.length) return null;
   const taste = buildTaste(rows.map((r) => parseMemory(r.blob_id, r.text)), date);
   const top = [...taste.weights.entries()].filter(([k]) => !k.startsWith("team:")).sort((a, b) => b[1].w - a[1].w);

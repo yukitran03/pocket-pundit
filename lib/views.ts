@@ -76,7 +76,7 @@ export async function meView(userId: number): Promise<MeResponse | null> {
   if (!u) return null;
   const today = localParts(new Date(), u.tz).date;
   const picks = await q<any>(`select * from picks where user_id = $1 order by brief_date desc, slot asc limit 120`, [userId]);
-  const jobs = await q<any>(`select * from memory_jobs where user_id = $1 order by id desc limit 400`, [userId]);
+  const jobs = await q<any>(`select * from memory_jobs where user_id = $1 and not archived order by id desc limit 400`, [userId]);
   const { blobs } = await chainBlobMap();
   const locks = await briefLocks(userId);
   const memories: MemoryRow[] = jobs.map((j) => {

@@ -5,6 +5,7 @@ import { lockBrief, lockLine } from "./lock.ts";
 import { BRAND } from "./brand.ts";
 import { purposeKey } from "./auth.ts";
 import { askMemory } from "./extras2.ts";
+import { ownUrl } from "./own.ts";
 import { duoCode, duoPick, holdInvite, pair, parseDuoCode, takeInvite, unpair, type DuoPick } from "./duo.ts";
 import { enqueueMemory, namespaceFor } from "./memory.ts";
 import { buildBrief, type BriefResult, type UserRow } from "./picker.ts";
@@ -343,7 +344,7 @@ async function duoCommand(u: any, arg: string) {
 async function sendHelp(chatId: number, returning = false) {
   await send(
     chatId,
-    `${returning ? "Welcome back. " : ""}<b>What I can do</b>\n/picks: tonight's three\n/ask &lt;question&gt;: ask your memory, e.g. <i>/ask which leagues do I enjoy?</i>\n/card: your football taste as a shareable image\n/calendar: add your picks to Google or Apple Calendar\n/duo: pair with a friend for one shared pick a night\n/export: download everything your pundit knows about you\n/teach &lt;text&gt;: tell me a preference\n/me: your private dashboard\n/alerts on|off: "worth switching on" pings during matches\n/spoilers on|off: show scores in full-time messages\n/settings: time zone, brief time, watch window\n\nOr just type a preference, e.g. <i>I love late comebacks</i>.`,
+    `${returning ? "Welcome back. " : ""}<b>What I can do</b>\n/picks: tonight's three\n/ask &lt;question&gt;: ask your memory, e.g. <i>/ask which leagues do I enjoy?</i>\n/card: your football taste as a shareable image\n/calendar: add your picks to Google or Apple Calendar\n/duo: pair with a friend for one shared pick a night\n/export: download everything your pundit knows about you\n/own: keep your memory in your own Walrus Memory account (optional, needs a Sui wallet)\n/teach &lt;text&gt;: tell me a preference\n/me: your private dashboard\n/alerts on|off: "worth switching on" pings during matches\n/spoilers on|off: show scores in full-time messages\n/settings: time zone, brief time, watch window\n\nOr just type a preference, e.g. <i>I love late comebacks</i>.`,
   );
 }
 
@@ -394,6 +395,17 @@ export async function handleUpdate(update: any) {
     }
     if (command === "/ask") return ask(u, rest.join(" "));
     if (command === "/duo") return duoCommand(u as any, (rest[0] || "").toLowerCase());
+    if (command === "/own") {
+      const own = (u as any).memwal_account as string | null;
+      const token = dashboardUrl(u.id).split("?t=")[1];
+      return send(
+        u.chat_id,
+        own
+          ? `🔑 Your memory lives in your own Walrus Memory account: <code>${own}</code>. Remove Pocket Pundit's key from it at any time to cut me off, or open the page below to switch back.`
+          : "<b>Own your memory (optional)</b>\nMove your taste memory into a Walrus Memory account that your own Sui wallet controls. You sign once or twice in your wallet (a tiny network fee, about 0.01 SUI), I check it on Sui and copy everything across. You can remove my access whenever you like.\n\nNo wallet? Nothing changes: your memory stays encrypted on Walrus in Pocket Pundit's account.",
+        [[{ text: own ? "Manage ownership" : "Take ownership", url: ownUrl(token) }]],
+      );
+    }
     if (command === "/export") return send(u.chat_id, "Everything your pundit knows about you, as one file: every memory with its Walrus blob link, plus the taste weights they add up to. It's yours to keep or take to another app.", [[{ text: "Download my memory (JSON)", url: `${env.appUrl()}/api/me/export?t=${encodeURIComponent(dashboardUrl(u.id).split("?t=")[1])}` }]]);
     if (command === "/card") return sendCard(u);
     if (command === "/calendar") return sendCalendar(u);

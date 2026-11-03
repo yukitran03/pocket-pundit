@@ -14,6 +14,8 @@ Object.assign(process.env, {
   TELEGRAM_WEBHOOK_SECRET: "hook",
   CRON_SECRET: "cron",
   APP_URL: "https://pundit.test",
+  MEMWAL_PUBLIC_KEY: "ab".repeat(32),
+  MEMWAL_ACCOUNT_ID: "0x" + "1".repeat(64),
 });
 delete process.env.DATABASE_URL;
 delete process.env.POSTGRES_URL;
@@ -58,7 +60,7 @@ function seedTonight(base: number): FakeMatch[] {
 
 beforeAll(async () => {
   globalThis.fetch = world.fakeFetch as any;
-  const [memory, telegram, tick, picker, util, db, extras2, views, lock, auth] = await Promise.all([
+  const [memory, telegram, tick, picker, util, db, extras2, views, lock, auth, extras] = await Promise.all([
     import("../lib/memory.ts"),
     import("../lib/telegram.ts"),
     import("../lib/tick.ts"),
@@ -69,11 +71,12 @@ beforeAll(async () => {
     import("../lib/views.ts"),
     import("../lib/lock.ts"),
     import("../lib/auth.ts"),
+    import("../lib/extras.ts"),
   ]);
   // @ts-ignore: the mock ships in the SDK's dist but isn't in its exports map
   const { MemWalMock } = await import("../node_modules/@mysten-incubation/memwal/dist/mock.js");
   memory.useMemWalClient(MemWalMock.create());
-  L = { memory, telegram, tick, picker, util, db, extras2, views, lock, auth };
+  L = { memory, telegram, tick, picker, util, db, extras2, views, lock, auth, extras };
   // No chain in tests: pre-seed the proof cache so views never dial Tatum.
   await db.cacheSet("proof:chainblobs", { owner: null, blobs: [] }, 86_400);
   seedHistory(Date.now());
@@ -417,5 +420,52 @@ describe("watch together and taste passport", () => {
     expect(doc!.memories.length).toBeGreaterThan(5);
     expect(doc!.memories.every((x: any) => x.blobId && x.walruscan.includes(x.blobId))).toBe(true);
     expect(doc!.taste.competitions.length).toBeGreaterThan(0);
+  });
+});
+
+describe("own your memory", () => {
+  const MINE = "0x" + "c".repeat(64);
+  const OWNER = "0x" + "9".repeat(64);
+
+  it("refuses an account without our key, the shared account, or junk", async () => {
+    const own = await import("../lib/own.ts");
+    own.setOwnershipVerifier(async () => ({ owner: OWNER, active: true, keys: ["00".repeat(32)] }));
+    expect((await own.claimAccount(U.id, MINE)).ok).toBe(false);
+    expect((await own.claimAccount(U.id, process.env.MEMWAL_ACCOUNT_ID!)).ok).toBe(false);
+    expect((await own.claimAccount(U.id, "not-an-id")).ok).toBe(false);
+    expect((await L.db.one(`select memwal_account from users where id = $1`, [U.id])).memwal_account).toBeNull();
+  });
+
+  it("claims a verified account, copies memories across once, and routes new memories there", async () => {
+    const own = await import("../lib/own.ts");
+    own.setOwnershipVerifier(async () => ({ owner: OWNER, active: true, keys: ["ab".repeat(32)] }));
+    const before = (await L.extras.ledgerTaste(U.id, "2026-11-10")).memoriesUsed;
+    const r = await own.claimAccount(U.id, MINE);
+    expect(r.ok).toBe(true);
+    expect((r as any).copied).toBeGreaterThan(3);
+    const again = await own.claimAccount(U.id, MINE);
+    expect((again as any).already).toBe(true);
+    await settleQueue();
+    const copies = await L.db.q(`select count(*)::int n from memory_jobs where user_id = $1 and account_id = $2 and status = 'stored'`, [U.id, MINE]);
+    expect(copies[0].n).toBe((r as any).copied);
+    expect((await L.extras.ledgerTaste(U.id, "2026-11-10")).memoriesUsed).toBe(before); // no double counting
+    await L.telegram.handleUpdate(msg("/teach I love cup upsets"));
+    const last = await L.db.one(`select account_id from memory_jobs where user_id = $1 order by id desc limit 1`, [U.id]);
+    expect(last.account_id).toBe(MINE);
+    const m = world.mark();
+    await L.telegram.handleUpdate(msg("/own"));
+    expect(lastText(m)).toContain(MINE);
+  });
+
+  it("notices when the viewer removes our key and falls back to the shared account", async () => {
+    const own = await import("../lib/own.ts");
+    own.setOwnershipVerifier(async () => ({ owner: OWNER, active: true, keys: [] }));
+    expect(await own.stillOwned(U.id)).toBe("revoked");
+    expect((await L.db.one(`select memwal_account from users where id = $1`, [U.id])).memwal_account).toBeNull();
+    const taste = await L.extras.ledgerTaste(U.id, "2026-11-10");
+    expect(taste.memoriesUsed).toBeGreaterThan(0);
+    await L.telegram.handleUpdate(msg("/teach I like derbies"));
+    const last = await L.db.one(`select account_id from memory_jobs where user_id = $1 order by id desc limit 1`, [U.id]);
+    expect(last.account_id).toBeNull();
   });
 });

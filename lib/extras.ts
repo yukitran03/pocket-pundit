@@ -9,7 +9,7 @@ import { PRIOR_OF } from "./picker.ts";
 
 /** Taste rebuilt from the user's stored memories (the ledger mirrors exactly what was written to Walrus). */
 export async function ledgerTaste(userId: number, today: string): Promise<Taste> {
-  const rows = await q<any>(`select blob_id, text from memory_jobs where user_id = $1 and status = 'stored' order by id`, [userId]);
+  const rows = await q<any>(`select blob_id, text from memory_jobs where user_id = $1 and status = 'stored' and not archived order by id`, [userId]);
   return buildTaste(rows.map((r) => parseMemory(r.blob_id, r.text)), today);
 }
 

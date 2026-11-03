@@ -184,6 +184,16 @@ export async function objectLastWrite(objectId: string): Promise<{ digest: strin
   return { digest, checkpoint: t.transaction?.checkpoint ?? null, at };
 }
 
+/** The Walrus Memory account a wallet created, if any (one per address), from its AccountCreated event. */
+export async function accountOfOwner(owner: string): Promise<string | null> {
+  const d = await gql<any>(
+    `query($t: String!, $s: SuiAddress!) { events(last: 1, filter: { type: $t, sender: $s }) { nodes { contents { json } } } }`,
+    { t: `${MEMWAL_PACKAGE}::account::AccountCreated`, s: owner },
+  );
+  const j = d.events?.nodes?.[0]?.contents?.json;
+  return j?.owner?.toLowerCase() === owner.toLowerCase() ? j.account_id : null;
+}
+
 /** Delegate-key history for the account (GraphQL events, sent by the account owner). */
 export async function delegateKeyEvents(owner: string, accountId = env.memwalAccountId()) {
   const d = await gql<any>(

@@ -5,7 +5,7 @@ import { ledgerTaste } from "./extras.ts";
 import { humanKey } from "./taste.ts";
 import { KNOWN_COMPS } from "./views.ts";
 import { localParts } from "./util.ts";
-import { searchMemories } from "./memory.ts";
+import { accountFor, searchMemories } from "./memory.ts";
 
 export interface CardData {
   name: string;
@@ -30,7 +30,7 @@ export async function cardData(userId: number): Promise<CardData | null> {
   const ranked = [...taste.weights.entries()].map(([k, v]) => ({ label: label(k, comps), w: v.w, n: v.evidence, team: k.startsWith("team:") }));
   const pulls = ranked.filter((x) => x.w > 0.05).sort((a, b) => b.w - a.w).slice(0, 4);
   const pushes = ranked.filter((x) => x.w < -0.05).sort((a, b) => a.w - b.w).slice(0, 2);
-  const [m] = await q<any>(`select count(*)::int n from memory_jobs where user_id = $1 and status = 'stored'`, [userId]);
+  const [m] = await q<any>(`select count(*)::int n from memory_jobs where user_id = $1 and status = 'stored' and not archived`, [userId]);
   const ab = await q<any>(
     `select arm, count(*)::int n, avg(case rating when 'loved' then 2 when 'fine' then 1 when 'bailed' then 0 end)::float s
      from picks where user_id = $1 and rating is not null and rating <> 'skipped' group by arm`,
@@ -111,7 +111,7 @@ export async function calendarFeed(userId: number, appName: string, appUrl: stri
 // ---------- /ask: answer from your own memory ----------
 
 export async function askMemory(user: { id: number; namespace: string; tz: string }, question: string) {
-  const res = await searchMemories(user.namespace, question, 8);
+  const res = await searchMemories(user.namespace, question, 8, await accountFor(user.id));
   const hits = res.hits.filter((h) => !/^\[system\]/.test(h.text)).slice(0, 5);
   const taste = await ledgerTaste(user.id, localParts(new Date(), user.tz).date);
   const comps = new Map<string, string>((await q<any>(`select distinct comp_id, competition from picks where user_id = $1`, [user.id])).map((r) => [String(r.comp_id), r.competition]));

@@ -11,7 +11,7 @@ export const PASSPORT_FORMAT = "pocket-pundit.taste-passport/v1";
 export async function tastePassport(userId: number) {
   const u = await one<any>(`select * from users where id = $1`, [userId]);
   if (!u) return null;
-  const jobs = await q<any>(`select kind, text, blob_id, status, created_at from memory_jobs where user_id = $1 order by id`, [userId]);
+  const jobs = await q<any>(`select kind, text, blob_id, status, created_at from memory_jobs where user_id = $1 and not archived order by id`, [userId]);
   const stored = jobs.filter((j) => j.status === "stored" && j.blob_id);
   const today = localParts(new Date(), u.tz).date;
   const labels = new Map<string, string>(Object.entries(KNOWN_COMPS).map(([id, l]) => [`comp:${id}`, l]));
@@ -24,7 +24,7 @@ export async function tastePassport(userId: number) {
     format: PASSPORT_FORMAT,
     generatedAt: new Date().toISOString(),
     about: "Football taste learned from real matches and one-tap ratings. Each memory is a Seal-encrypted blob on Walrus mainnet; the sentence format is documented at docs/MEMORY-FORMAT.md in the project repository.",
-    walrusMemory: { accountId: process.env.MEMWAL_ACCOUNT_ID ?? null, namespace: u.namespace, relayer: env.memwalServerUrl() },
+    walrusMemory: { accountId: u.memwal_account ?? process.env.MEMWAL_ACCOUNT_ID ?? null, ownedByYou: !!u.memwal_account, owner: u.memwal_owner ?? null, namespace: u.namespace, relayer: env.memwalServerUrl() },
     settings: { timeZone: u.tz, briefHour: u.brief_hour, watchWindow: { startHour: u.window_start, endHour: u.window_end } },
     taste: tasteToContract(buildTaste(stored.map((j) => parseMemory(j.blob_id, j.text)), today), labels),
     memories: stored.map((j) => ({

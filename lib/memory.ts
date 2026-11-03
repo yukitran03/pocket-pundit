@@ -7,23 +7,34 @@ import { hmac, sha256, sleep } from "./util.ts";
 import type { MemoryKind } from "./contract.ts";
 import { parseMemory, type ParsedMemory } from "./taste.ts";
 
-let client: MemWal | null = null;
+const clients = new Map<string, MemWal>();
+let override: MemWal | null = null;
 
 /** Tests swap in the SDK's in-memory MemWalMock so end-to-end runs never write to mainnet. */
 export function useMemWalClient(c: unknown) {
-  client = c as MemWal;
+  override = c as MemWal;
 }
 
-export function memwal(): MemWal {
-  if (!client) {
-    client = MemWal.create({
-      key: env.memwalKey(),
-      accountId: env.memwalAccountId(),
-      serverUrl: env.memwalServerUrl(),
-      recallTimeoutMs: 20_000,
-    });
+/**
+ * A client for one Walrus Memory account: Pocket Pundit's shared account by default, or the viewer's own
+ * account once they have added our delegate key to it (see lib/own.ts). Same key, different account.
+ */
+export function memwal(accountId?: string | null): MemWal {
+  if (override) return override;
+  const id = accountId || env.memwalAccountId();
+  let c = clients.get(id);
+  if (!c) {
+    c = MemWal.create({ key: env.memwalKey(), accountId: id, serverUrl: env.memwalServerUrl(), recallTimeoutMs: 20_000 });
+    clients.set(id, c);
   }
-  return client;
+  return c;
+}
+
+/** The account a viewer's memories live in (null = the shared account). */
+export async function accountFor(userId: number | null): Promise<string | null> {
+  if (!userId) return null;
+  const r = await one<{ memwal_account: string | null }>(`select memwal_account from users where id = $1`, [userId]);
+  return r?.memwal_account ?? null;
 }
 
 /** Namespace names are public on-chain (Blob metadata), so derive them with an HMAC instead of exposing ids. */
@@ -69,10 +80,11 @@ export async function enqueueMemory(o: EnqueueOpts): Promise<{ id: number; dupli
   const idem = `mf:${o.idem ?? sha256(`${o.namespace}|${text}`).slice(0, 24)}`;
   const existing = await one<{ id: number }>(`select id from memory_jobs where idem_key = $1`, [idem]);
   if (existing) return { id: Number(existing.id), duplicate: true, removed };
+  const account = await accountFor(o.userId);
   const row = await one<{ id: number }>(
-    `insert into memory_jobs (user_id, namespace, kind, text, idem_key, supersedes, notify_chat, notify_message)
-     values ($1,$2,$3,$4,$5,$6,$7,$8) on conflict (idem_key) do nothing returning id`,
-    [o.userId, o.namespace, o.kind, text, idem, o.supersedes ?? null, o.notifyChat ?? null, o.notifyMessage ?? null],
+    `insert into memory_jobs (user_id, namespace, kind, text, idem_key, supersedes, notify_chat, notify_message, account_id)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9) on conflict (idem_key) do nothing returning id`,
+    [o.userId, o.namespace, o.kind, text, idem, o.supersedes ?? null, o.notifyChat ?? null, o.notifyMessage ?? null, account],
   );
   return { id: Number(row?.id ?? 0), duplicate: !row, removed };
 }
@@ -90,13 +102,12 @@ export interface StoredJob {
  * Returns the jobs that reached `stored` in this pass so callers can notify users.
  */
 export async function processMemoryQueue(maxSubmit = 8): Promise<{ submitted: number; stored: StoredJob[]; failed: number }> {
-  const mw = memwal();
   let submitted = 0;
   let failed = 0;
   const queued = await q(`select * from memory_jobs where status = 'queued' and attempts < 6 order by id asc limit $1`, [maxSubmit]);
   for (const j of queued) {
     try {
-      const acc = await mw.remember(j.text, j.namespace, { idempotencyKey: j.idem_key });
+      const acc = await memwal(j.account_id).remember(j.text, j.namespace, { idempotencyKey: j.idem_key });
       await q(`update memory_jobs set status='pending', job_id=$2, attempts=attempts+1, error=null, updated_at=now() where id=$1`, [j.id, acc.job_id]);
       submitted++;
     } catch (e: any) {
@@ -110,10 +121,13 @@ export async function processMemoryQueue(maxSubmit = 8): Promise<{ submitted: nu
 
   const stored: StoredJob[] = [];
   const pending = await q(`select * from memory_jobs where status = 'pending' and job_id is not null order by id asc limit 50`);
-  if (pending.length) {
+  const groups = new Map<string, any[]>();
+  for (const p of pending) groups.set(p.account_id ?? "", [...(groups.get(p.account_id ?? "") ?? []), p]);
+  for (const [account, group] of groups) {
     try {
-      const st = await mw.getRememberBulkStatus(pending.map((p) => p.job_id));
+      const st = await memwal(account || null).getRememberBulkStatus(group.map((p) => p.job_id));
       const byJob = new Map(st.results.map((r) => [r.job_id, r]));
+      const pending = group;
       for (const p of pending) {
         const r = byJob.get(p.job_id);
         if (!r) continue;
@@ -136,7 +150,7 @@ export async function processMemoryQueue(maxSubmit = 8): Promise<{ submitted: nu
 
 /** Recall a user's taste memories (two queries, merged). Logged as recall events for traceability. */
 export async function recallTaste(userId: number, namespace: string): Promise<{ memories: ParsedMemory[]; ok: boolean; latencyMs: number }> {
-  const mw = memwal();
+  const mw = memwal(await accountFor(userId));
   const t0 = Date.now();
   const queries: { query: string; sort: "recent" | "relevance"; limit: number }[] = [
     { query: "football matches I rated, loved or bailed on", sort: "recent", limit: 60 },
@@ -162,9 +176,9 @@ export async function recallTaste(userId: number, namespace: string): Promise<{ 
   return { memories: [...merged.values()], ok, latencyMs: Date.now() - t0 };
 }
 
-export async function searchMemories(namespace: string, query: string, limit = 12) {
+export async function searchMemories(namespace: string, query: string, limit = 12, accountId: string | null = null) {
   const t0 = Date.now();
-  const res = await memwal().recall({ query, namespace, limit, sort: "relevance", timeoutMs: 20_000 });
+  const res = await memwal(accountId).recall({ query, namespace, limit, sort: "relevance", timeoutMs: 20_000 });
   return { hits: res.results.map((r) => ({ blobId: r.blob_id, text: r.text, distance: r.distance, createdAt: r.created_at ?? null })), latencyMs: Date.now() - t0 };
 }
 
