@@ -447,8 +447,11 @@ li:hover > .row-wash, li:focus-within > .row-wash { opacity: 1; }
 .flare-burst > b { position: absolute; left: -40px; top: -40px; width: 80px; height: 80px; border-radius: 999px; box-shadow: inset 0 0 0 2px rgb(240 83 28 / 0.85); opacity: 0; animation: burst-ring 700ms ease-out both; }
 @keyframes spark { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0) scale(1); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-58px) scale(0.3); } }
 @keyframes burst-ring { 0% { opacity: 0.9; transform: scale(0.4); } 100% { opacity: 0; transform: scale(2); } }
-/* Keep card content above the spotlight and the row wash (zero specificity, so .absolute and .sr-only still win). */
-:where(.card-spot ~ *, .row-wash ~ *) { position: relative; }
+/* Keep card content above the spotlight and the row wash. In the base layer (and zero specificity), so
+   utilities such as .absolute and .sr-only always win; unlayered CSS would beat every Tailwind utility. */
+@layer base {
+  :where(.card-spot ~ *, .row-wash ~ *) { position: relative; }
+}
 
 /* ------------------------------------------------------------------ winter nights (components/season) */
 /* Warm bulbs on a sagging wire under the header: they warm up once, then glow quietly (no twinkling loop). */
@@ -471,3 +474,10 @@ li:hover > .row-wash, li:focus-within > .row-wash { opacity: 1; }
 }
 html[data-season="winter"] .season-ambient { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .season-ambient { transition: none; } }
+
+/* Seasonal pines: warm bulbs glow slowly; still under reduced motion. */
+.pine-bulb { opacity: 0.85; filter: drop-shadow(0 0 2px rgb(255 200 120 / 0.9)); }
+@media (prefers-reduced-motion: no-preference) {
+  .pine-bulb { animation: bulb-twinkle 2600ms ease-in-out infinite alternate; }
+}
+@keyframes bulb-twinkle { from { opacity: 0.4; } to { opacity: 1; } }

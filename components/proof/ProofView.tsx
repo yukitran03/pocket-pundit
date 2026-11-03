@@ -8,6 +8,7 @@ import { suiscanAccount, suiscanObject, walruscanBlob } from "@/lib/client/chain
 import { fmtBriefDate, fmtBytes, fmtInt, fmtLead, fmtTime, shortId, visitorTz } from "@/lib/client/format";
 import { DataSourceBadge, EmptyState, ErrorState, Skeleton } from "@/components/site/States";
 import { IconCheck, IconExternal, IconLock, IconRefresh } from "@/components/site/Icons";
+import { TechDetails } from "./TechDetails";
 
 export function ProofView() {
   const p = useApi<ProofResponse>((s) => getProof(s), "proof");
@@ -135,18 +136,19 @@ function ChainCard({ d }: { d: ProofResponse }) {
       <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-[var(--line)]">
         <div className="flex flex-col-reverse bg-ink-1 p-4">
           <dt className="mt-1 text-xs text-chalk-3">Sui epoch</dt>
-          <dd className="font-display text-4xl font-extrabold leading-none">{d.chain.epoch ?? <span className="text-chalk-4">n/a</span>}</dd>
+          <dd className="font-display text-4xl font-extrabold leading-none">{d.chain.epoch ?? <span className="text-chalk-4">–</span>}</dd>
         </div>
         <div className="flex flex-col-reverse bg-ink-1 p-4">
           <dt className="mt-1 text-xs text-chalk-3">Checkpoint</dt>
-          <dd className="mono text-lg font-semibold leading-tight text-chalk tnum">{d.chain.checkpoint ? fmtInt(Number(d.chain.checkpoint)) : <span className="text-chalk-4">n/a</span>}</dd>
+          <dd className="mono text-lg font-semibold leading-tight text-chalk tnum">{d.chain.checkpoint ? fmtInt(Number(d.chain.checkpoint)) : <span className="text-chalk-4">–</span>}</dd>
         </div>
       </dl>
-      <p className="micro mt-5">Read via</p>
-      <ul className="mt-2 flex flex-wrap gap-1.5">
-        {(d.chain.via.length ? d.chain.via : ["Tatum"]).map((v) => <li key={v} className="chip !text-chalk-2">{v}</li>)}
-      </ul>
-      <p className="mt-auto pt-5 text-xs text-chalk-3">Tatum’s gateways serve Sui mainnet over gRPC (LedgerService, StateService) and GraphQL. Nothing here comes from our own database.</p>
+      <p className="mt-5 flex items-center gap-2.5 text-sm text-chalk-2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brands/tatum-on-dark.svg" alt="Tatum" width={73} height={18} className="block h-[18px] w-auto" />
+        Read live from Sui through Tatum. Nothing here comes from our own database.
+      </p>
+      <TechDetails via={d.chain.via} open className="mt-4 border-t border-[var(--line-faint)] pt-3" />
     </section>
   );
 }

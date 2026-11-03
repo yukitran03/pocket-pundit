@@ -88,9 +88,9 @@ export function Aura({ tints, children, className = "" }: { tints: { home: strin
 }
 
 /**
- * Counts a number up from 0 the first time it comes into view (ease-out, about 0.9 s). The real value is
- * rendered on the server and kept for screen readers; only the visible digits animate. Static under
- * reduced motion.
+ * Counts a number up from 0 the first time it comes into view (ease-out, about 0.9 s). Exactly one number
+ * is rendered (so copy/paste and screen readers never see it twice); it is aria-hidden, and the parent
+ * carries the final value as its accessible name (aria-label or aria-valuenow). Static under reduced motion.
  */
 export function CountUp({ value, format = (n) => String(Math.round(n)), duration = 900, className = "" }: { value: number; format?: (n: number) => string; duration?: number; className?: string }) {
   const el = useRef<HTMLSpanElement>(null);
@@ -124,10 +124,5 @@ export function CountUp({ value, format = (n) => String(Math.round(n)), duration
       node.textContent = format(value);
     };
   }, [value, duration]); // eslint-disable-line react-hooks/exhaustive-deps
-  return (
-    <>
-      <span ref={el} aria-hidden className={className}>{format(value)}</span>
-      <span className="sr-only">{format(value)}</span>
-    </>
-  );
+  return <span ref={el} aria-hidden className={className}>{format(value)}</span>;
 }

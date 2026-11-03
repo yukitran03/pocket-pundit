@@ -9,6 +9,7 @@ import { fmtBriefDate, fmtInt, fmtLead, fmtTime, visitorTz } from "@/lib/client/
 import { useInView } from "@/components/three/hooks";
 import { DataSourceBadge, ErrorState, Skeleton } from "@/components/site/States";
 import { IconArrowRight, IconCheck } from "@/components/site/Icons";
+import { TechDetails } from "@/components/proof/TechDetails";
 
 type Row = { call: string; title: string; value: ReactNode; detail: ReactNode; state: "ok" | "idle" | "missing" };
 
@@ -77,10 +78,14 @@ export function TatumCheck() {
   return (
     <div ref={box} className="card overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
-        <p className="text-sm font-medium text-chalk">
-          Live check
-          {p.status === "ok" ? <span className="font-normal text-chalk-3"> · read at {fmtTime(p.data.checkedAt, visitorTz())} your time</span> : null}
-        </p>
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brands/tatum-on-dark.svg" alt="Tatum" width={81} height={20} className="block h-5 w-auto" />
+          <p className="text-sm font-medium text-chalk">
+            Read live from Sui through Tatum
+            {p.status === "ok" ? <span className="block font-normal text-chalk-3 sm:inline"><span className="hidden sm:inline"> · </span>at {fmtTime(p.data.checkedAt, visitorTz())} your time</span> : null}
+          </p>
+        </div>
         {p.status === "ok" ? <DataSourceBadge source={p.source} updatedAt={p.data.checkedAt} /> : null}
       </div>
 
@@ -94,7 +99,6 @@ export function TatumCheck() {
               <div className="min-w-0">
                 <p className="font-medium text-chalk">{r.title}</p>
                 <p className="mt-0.5 text-sm text-chalk-3">{r.detail}</p>
-                <p className="mt-1.5"><span className="chip chip-id !h-[22px]" title={`Tatum gRPC · sui.rpc.v2 · ${r.call}`}>{r.call}</span></p>
               </div>
               <p className={`col-start-2 mt-2 font-display text-[1.6rem] font-extrabold leading-none sm:col-start-3 sm:mt-0 sm:text-right ${r.state === "idle" ? "text-chalk-3" : ""}`}>{r.value}</p>
             </li>
@@ -112,10 +116,8 @@ export function TatumCheck() {
         </div>
       )}
 
-      <div className="flex flex-col gap-3 border-t border-[var(--line)] px-5 py-4 text-xs text-chalk-3 sm:flex-row sm:items-center sm:justify-between">
-        <p>
-          Native gRPC (<span className="chip-id">sui.rpc.v2</span>) at <span className="chip-id break-all">sui-mainnet-grpc.gateway.tatum.io</span>, plus GraphQL. Read-only, from our server.
-        </p>
+      <div className="flex flex-col gap-2 border-t border-[var(--line)] px-5 py-3 text-xs text-chalk-3 sm:flex-row sm:items-start sm:justify-between">
+        <TechDetails via={p.status === "ok" ? p.data.chain.via : []} />
         <Link href="/proof" className="btn btn-quiet shrink-0 !min-h-[32px] !text-xs">
           Full proof <IconArrowRight size={14} />
         </Link>

@@ -48,7 +48,7 @@ export function HowItWorks({ sample, tz }: { sample: Pick; tz: string }) {
         ))}
       </ol>
       <div className="min-w-0 self-start">
-        <PickCard pick={sample} tz={tz} openCites sampleLabel="Sample pick" showTz />
+        <PickCard pick={sample} tz={tz} sampleLabel="Sample pick" showTz />
         <p className="mt-3 text-xs text-chalk-3">Illustration: a real card layout with sample data for a viewer in Ho Chi Minh City.</p>
       </div>
     </div>

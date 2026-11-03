@@ -20,7 +20,9 @@ export function PickCard({ pick, tz, openCites = false, sampleLabel, showTz = fa
   const hasScore = pick.homeScore !== null && pick.awayScore !== null;
   const tone = pick.arm === "memory" ? "memory" : pick.arm === "control" ? "control" : "neutral";
   const titleId = `${pick.id}-title`;
-  const reasons = pick.reasons.slice(0, 3);
+  // Two reasons up front; any more live behind the memories disclosure, so the card stays compact.
+  const reasons = pick.reasons.slice(0, 2);
+  const moreReasons = pick.reasons.slice(2, 4);
   const hc = teamColors(pick.home);
   const ac = teamColors(pick.away);
   const tints = { "--home": hc.tint, "--away": ac.tint, "--home-a": hc.a ?? 0.46, "--away-a": ac.a ?? 0.46 } as React.CSSProperties;
@@ -32,15 +34,15 @@ export function PickCard({ pick, tz, openCites = false, sampleLabel, showTz = fa
         <div aria-hidden className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full opacity-60" style={{ background: "radial-gradient(closest-side, rgb(240 83 28 / 0.2), transparent)" }} />
       ) : null}
 
-      <div className="relative flex flex-1 flex-col p-5">
+      <div className="relative flex flex-1 flex-col p-4 sm:p-5">
         {/* 1. What, and how much it's worth watching */}
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="mb-2.5 flex items-center justify-between gap-3">
           <p className="min-w-0">
             <span className="chip max-w-full !h-auto min-h-6 !whitespace-normal py-0.5 !text-chalk-2" title={pick.stage ? `${pick.competition} · ${pick.stage}` : pick.competition}>
               {pick.competition}
             </span>
           </p>
-          <WorthRing value={pick.score} tone={tone} size={56} />
+          <WorthRing value={pick.score} tone={tone} size={50} />
         </div>
 
         {/* 2. Who, and when: the versus screen */}
@@ -62,18 +64,18 @@ export function PickCard({ pick, tz, openCites = false, sampleLabel, showTz = fa
             </span>
           }
         />
-        <p className="mt-2 text-center text-xs text-chalk-3">
+        <p className="mt-1.5 text-center text-[0.72rem] text-chalk-3">
           {fmtDay(pick.kickoff, tz)}
           {showTz ? `, ${tzLabel(tz)} time` : ""}
           {pick.stage ? ` · ${pick.stage}` : ""}
         </p>
 
         {/* 3. Recent form, head to head (only when the feed has it) */}
-        <HeadToHead form={pick.form} home={pick.home} away={pick.away} className="mt-5 border-t border-[var(--line-faint)] pt-4" />
+        <HeadToHead form={pick.form} home={pick.home} away={pick.away} compact className="mt-3.5 border-t border-[var(--line-faint)] pt-3" />
 
         {/* 4. Why */}
         {reasons.length ? (
-          <ul className="mt-5 space-y-2 text-[0.93rem] leading-snug text-chalk-2" aria-label="Why this pick">
+          <ul className="mt-3.5 space-y-1.5 text-[0.9rem] leading-snug text-chalk-2" aria-label="Why this pick">
             {reasons.map((r, i) => (
               <li key={i} className="flex gap-2.5">
                 <span aria-hidden className={`mt-[0.5em] h-1.5 w-1.5 shrink-0 rounded-full ${tone === "memory" ? "bg-flare" : tone === "control" ? "bg-steel" : "bg-chalk-3"}`} />
@@ -84,14 +86,14 @@ export function PickCard({ pick, tz, openCites = false, sampleLabel, showTz = fa
         ) : null}
 
         {/* 5. Memories behind it (folded) */}
-        <div className="mt-auto pt-5">
-          <CitedMemories pick={pick} defaultOpen={openCites} />
+        <div className="mt-auto pt-3.5">
+          <CitedMemories pick={pick} defaultOpen={openCites} more={moreReasons} />
           {pick.rating || pick.drama ? <Outcome rating={pick.rating} drama={pick.drama} /> : null}
         </div>
       </div>
 
       {/* 6. Status */}
-      <footer className="relative flex flex-wrap items-center gap-1.5 border-t border-[var(--line-faint)] px-5 py-3">
+      <footer className="relative flex flex-wrap items-center gap-1.5 border-t border-[var(--line-faint)] px-4 py-2.5 sm:px-5">
         {sampleLabel ? <span className="chip !h-[22px] uppercase !tracking-[0.06em] !text-[0.65rem]">{sampleLabel}</span> : null}
         <ArmTag arm={pick.arm} />
         {pick.lock ? <LockChip lock={pick.lock} tz={tz} /> : null}
@@ -186,28 +188,47 @@ export function BlobChip({ blobId, tone = "flare" }: { blobId: string; tone?: "f
   );
 }
 
-function CitedMemories({ pick, defaultOpen }: { pick: Pick; defaultOpen: boolean }) {
+function MoreReasons({ more }: { more: string[] }) {
+  if (!more.length) return null;
+  return (
+    <ul className="mb-3 space-y-1 text-sm text-chalk-2" aria-label="More reasons">
+      {more.map((r, i) => (
+        <li key={i} className="flex gap-2.5">
+          <span aria-hidden className="mt-[0.55em] h-1 w-1 shrink-0 rounded-full bg-chalk-3" />
+          <span>{r}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CitedMemories({ pick, defaultOpen, more = [] }: { pick: Pick; defaultOpen: boolean; more?: string[] }) {
   const blind = pick.arm === null;
   const n = pick.cites.length;
-  if (!blind && n === 0)
+  if (!blind && n === 0 && !more.length)
     return (
-      <p className="flex min-h-[40px] items-center gap-2.5 rounded-[10px] bg-ink-0/50 px-3.5 text-sm text-chalk-3 hairline">
+      <p className="flex min-h-[38px] items-center gap-2.5 rounded-[10px] bg-ink-0/50 px-3.5 text-sm text-chalk-3 hairline">
         <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-steel" />
         Picked with memory off: the control for your A/B test.
       </p>
     );
-  const summary = blind ? "The memories behind this pick" : `Shaped by ${n} ${n === 1 ? "memory" : "memories"} on Walrus`;
+  const summary = blind
+    ? "The memories behind this pick"
+    : n
+      ? `Shaped by ${n} ${n === 1 ? "memory" : "memories"} on Walrus`
+      : `Picked with memory off · ${more.length} more ${more.length === 1 ? "reason" : "reasons"}`;
   return (
     <details className="group rounded-[10px] bg-ink-0/50 hairline" open={defaultOpen}>
-      <summary className="flex min-h-[40px] items-center justify-between gap-3 px-3.5 text-sm font-medium text-chalk-2 hover:text-chalk">
+      <summary className="flex min-h-[38px] items-center justify-between gap-3 px-3.5 text-sm font-medium text-chalk-2 hover:text-chalk">
         <span className="flex min-w-0 items-center gap-2.5">
-          <span aria-hidden className={`h-1.5 w-1.5 shrink-0 rounded-full ${blind ? "bg-chalk-3" : "bg-flare"}`} />
+          <span aria-hidden className={`h-1.5 w-1.5 shrink-0 rounded-full ${blind ? "bg-chalk-3" : n ? "bg-flare" : "bg-steel"}`} />
           <span className="truncate">{summary}</span>
         </span>
         <IconChevron size={15} className="shrink-0 transition-transform group-open:rotate-90" />
       </summary>
-      <div className="px-3.5 pb-3.5">
+      <div className="px-3.5 pb-3">
         {blind ? <p className="mb-2.5 text-xs text-warn">Opening this tells you whether it&rsquo;s a memory pick.</p> : null}
+        <MoreReasons more={more} />
         {n === 0 ? (
           <p className="text-sm text-chalk-3">None. This is the control pick, chosen with memory off so your ratings can be compared fairly.</p>
         ) : (

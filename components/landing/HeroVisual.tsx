@@ -15,7 +15,7 @@ const NightPitchScene = dynamic(() => import("@/components/three/NightPitchScene
 
 export function HeroVisual() {
   const stats = useStats();
-  const { snow } = useSeason();
+  const { snow, decor } = useSeason();
   const reduced = useReducedMotion();
   const webgl = useWebGL();
   const idle = useIdle();
@@ -55,7 +55,7 @@ export function HeroVisual() {
         {show3d ? (
           <div className={`absolute inset-0 transition-opacity duration-1000 ${ready ? "opacity-100" : "opacity-0"}`}>
             <SceneBoundary onError={() => setFailed(true)}>
-              <NightPitchScene memoryCount={count} reducedMotion={reduced} active={inView} scroll={scroll} snow={snow} onReady={() => setReady(true)} />
+              <NightPitchScene memoryCount={count} reducedMotion={reduced} active={inView} scroll={scroll} snow={snow} trees={decor} onReady={() => setReady(true)} />
             </SceneBoundary>
           </div>
         ) : null}

@@ -11,6 +11,7 @@ export function Section({
   children,
   className = "",
   wide = false,
+  rail,
 }: {
   id?: string;
   index: string;
@@ -22,6 +23,8 @@ export function Section({
   className?: string;
   /** Let the content break out of the 9-column text measure to the full grid. */
   wide?: boolean;
+  /** Optional decoration under the rail label (desktop only, never in the flow on phones). */
+  rail?: ReactNode;
 }) {
   const headingId = id ? `${id}-title` : undefined;
   return (
@@ -33,6 +36,7 @@ export function Section({
             <span aria-hidden className="rail-line h-px w-8 bg-line-strong" />
             <span>{label}</span>
           </p>
+          {rail ? <div aria-hidden className="mt-8 hidden lg:block">{rail}</div> : null}
         </div>
         <div className="min-w-0 lg:col-span-9">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between" data-reveal>

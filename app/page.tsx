@@ -17,6 +17,7 @@ import { TatumCheck } from "@/components/landing/TatumCheck";
 import { MemoryJourney } from "@/components/landing/MemoryJourney";
 import { GooeyWords } from "@/components/fx/GooeyWords";
 import { ScrollReveal, SmoothScroll } from "@/components/fx/Motion";
+import { SeasonTree } from "@/components/season/Trees";
 
 // Illustrative sample (labelled on the page): the same viewer on day 1 and day 7.
 // For the illustration the arms are revealed; in the product they stay hidden until rated.
@@ -90,7 +91,7 @@ export default function Home() {
       </Section>
 
       {/* ------------------------------------------------------------ tonight, live */}
-      <Section id="tonight" index="03" label="Tonight" title="What’s worth watching tonight." lede="Straight from the live feed, in your time zone. This is your pundit before it knows you." wide>
+      <Section id="tonight" index="03" label="Tonight" rail={<SeasonTree size={60} />} title="What’s worth watching tonight." lede="Straight from the live feed, in your time zone. This is your pundit before it knows you." wide>
         <TonightBoard />
       </Section>
 
@@ -155,6 +156,10 @@ export default function Home() {
       <section className="shell mt-[var(--section-gap)]" aria-labelledby="cta-title">
         <div className="card relative overflow-hidden p-8 md:p-12" data-reveal>
           <div aria-hidden className="pointer-events-none absolute -right-20 -top-28 h-80 w-80 rounded-full" style={{ background: "radial-gradient(closest-side, rgb(240 83 28 / 0.25), transparent)" }} />
+          <span aria-hidden className="pointer-events-none absolute right-8 top-6 hidden items-end gap-1 md:flex">
+            <SeasonTree size={40} />
+            <SeasonTree size={58} />
+          </span>
           <div className="relative grid gap-6 md:grid-cols-[1fr_auto] md:items-end">
             <div>
               <h2 id="cta-title" className="display-l max-w-2xl">Tell your pundit when you can watch. It handles the other 397.</h2>

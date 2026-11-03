@@ -12,10 +12,12 @@ export interface SeasonState {
   reduced: boolean;
   /** Snow actually shows: in season, switched on, and motion allowed. */
   snow: boolean;
+  /** Seasonal decorations (trees) show: in season and switched on. Their twinkle still stops under reduced motion. */
+  decor: boolean;
 }
 
 const KEY = "pp-snow";
-const SERVER: SeasonState = { season: false, daysToBoxingDay: 0, pref: "on", reduced: true, snow: false };
+const SERVER: SeasonState = { season: false, daysToBoxingDay: 0, pref: "on", reduced: true, snow: false, decor: false };
 let state: SeasonState | null = null;
 /** This visit's choice; wins over storage, so the switch works even when storage is blocked. */
 let memPref: "on" | "off" | null = null;
@@ -40,7 +42,7 @@ function compute(): SeasonState {
     }
   }
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  return { season, daysToBoxingDay: daysToBoxingDay(now), pref, reduced, snow: season && pref === "on" && !reduced };
+  return { season, daysToBoxingDay: daysToBoxingDay(now), pref, reduced, snow: season && pref === "on" && !reduced, decor: season && pref === "on" };
 }
 
 function emit() {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BRAND } from "@/lib/brand";
 import { LogoMark } from "./Logo";
 import { SnowToggle } from "@/components/season/Season";
+import { SeasonTree } from "@/components/season/Trees";
 
 export const REPO_URL = "https://github.com/yukitran03/match-finder";
 
@@ -9,7 +10,10 @@ export function SiteFooter() {
   return (
     <footer className="mt-[var(--section-gap)] border-t border-line">
       <div className="shell grid gap-10 py-12 md:grid-cols-12">
-        <div className="md:col-span-5">
+        <div className="relative md:col-span-5">
+          <span aria-hidden className="pointer-events-none absolute right-2 top-0 hidden lg:block">
+            <SeasonTree size={44} />
+          </span>
           <div className="flex items-center gap-3">
             <LogoMark size={32} />
             <p className="font-display text-2xl font-extrabold uppercase leading-none">{BRAND.name}</p>

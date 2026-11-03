@@ -6,6 +6,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
@@ -31,9 +32,11 @@ export interface NightPitchProps {
   scroll?: MutableRefObject<number>;
   /** Winter nights: snow through the floodlights (off under reduced motion). */
   snow?: boolean;
+  /** Winter nights: pines behind the far corners (their bulbs stand still under reduced motion). */
+  trees?: boolean;
 }
 
-export default function NightPitchScene({ memoryCount, reducedMotion, active, onReady, scroll, snow = false }: NightPitchProps) {
+export default function NightPitchScene({ memoryCount, reducedMotion, active, onReady, scroll, snow = false, trees = false }: NightPitchProps) {
   const fallback = useRef(0);
   const s = scroll ?? fallback;
   return (
@@ -56,6 +59,7 @@ export default function NightPitchScene({ memoryCount, reducedMotion, active, on
       <Memories count={memoryCount} reducedMotion={reducedMotion} />
       {reducedMotion ? null : <RisingPicks scroll={s} />}
       {snow && !reducedMotion ? <SnowSized /> : null}
+      {trees ? <Pines /> : null}
     </Canvas>
   );
 }
@@ -514,4 +518,120 @@ export function Snow({ count }: { count: number }) {
 function SnowSized() {
   const w = useThree((st) => st.size.width);
   return <Snow count={w < 640 ? 380 : 900} />;
+}
+
+/**
+ * Winter nights: low-poly pines behind the far corners, like trees around a winter stadium. Vertex colours
+ * are baked lighter on the side facing the pitch (the floodlights) and darker at the back and the base.
+ * Warm bulbs are one Points draw call that twinkles in the shader (static when the loop is paused).
+ */
+const PINE_SPOTS: [number, number, number, number][] = [
+  // x, z, scale, seed
+  // behind the far touchline, where the floodlit haze silhouettes them
+  [-5.7, -(HZ + 2.1), 1.2, 1],
+  [-4.2, -(HZ + 2.8), 0.9, 2],
+  [5.5, -(HZ + 2.3), 1.1, 3],
+];
+
+function pineGeometry() {
+  const tiers = [
+    { r: 0.62, h: 0.95, y: 0.75 },
+    { r: 0.5, h: 0.85, y: 1.3 },
+    { r: 0.34, h: 0.75, y: 1.8 },
+  ];
+  const parts: THREE.BufferGeometry[] = tiers.map((t) => new THREE.ConeGeometry(t.r, t.h, 7, 1).translate(0, t.y, 0));
+  const trunk = new THREE.CylinderGeometry(0.07, 0.09, 0.4, 6).translate(0, 0.2, 0);
+  const geos = [...parts, trunk].map((g) => g.toNonIndexed());
+  return { cones: geos.slice(0, 3), trunk: geos[3] };
+}
+
+const PINE_LIGHT_VERT = `
+uniform float uTime;
+uniform float uSize;
+attribute float aSeed;
+varying float vTw;
+void main() {
+  vTw = 0.55 + 0.45 * sin(uTime * (1.3 + aSeed * 1.7) + aSeed * 40.0);
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  gl_PointSize = uSize * (32.0 / -mv.z);
+  gl_Position = projectionMatrix * mv;
+}`;
+const PINE_LIGHT_FRAG = `
+uniform sampler2D uTex;
+varying float vTw;
+void main() {
+  float a = texture2D(uTex, gl_PointCoord).a * vTw;
+  gl_FragColor = vec4(vec3(1.0, 0.84, 0.58) * a, a);
+}`;
+
+function Pines() {
+  const dpr = useThree((st) => st.viewport.dpr);
+  const tex = useMemo(() => glowTexture(64), []);
+  const { tree, lights, lightMat } = useMemo(() => {
+    const { cones, trunk } = pineGeometry();
+    const all: THREE.BufferGeometry[] = [];
+    const lightPos: number[] = [];
+    const lightSeed: number[] = [];
+    const center = new THREE.Vector3(0, 0, 0);
+    const green = new THREE.Color("#12402a"), deep = new THREE.Color("#04140a"), lit = new THREE.Color("#36704b");
+    for (const [x, z, s, seed] of PINE_SPOTS) {
+      const toPitch = center.clone().sub(new THREE.Vector3(x, 0, z)).normalize();
+      for (const g0 of [...cones, trunk]) {
+        const g = g0.clone().scale(s, s, s).translate(x, 0, z);
+        const pos = g.getAttribute("position");
+        const nrm = g.getAttribute("normal");
+        const col = new Float32Array(pos.count * 3);
+        const c = new THREE.Color();
+        for (let i = 0; i < pos.count; i++) {
+          if (g0 === trunk) c.set("#3b2a1d");
+          else {
+            const facing = Math.max(0, nrm.getX(i) * toPitch.x + nrm.getZ(i) * toPitch.z);
+            const h = THREE.MathUtils.clamp(pos.getY(i) / (2.2 * s), 0, 1);
+            c.copy(deep).lerp(green, 0.3 + h * 0.4).lerp(lit, facing * 0.6);
+          }
+          col.set([c.r, c.g, c.b], i * 3);
+        }
+        g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+        all.push(g);
+      }
+      // bulbs on a loose spiral over the cones
+      const rnd = mulberry32(900 + seed);
+      for (let k = 0; k < 14; k++) {
+        const t = k / 14;
+        const y = (0.4 + t * 1.75) * s;
+        const r = (0.6 - t * 0.42) * s;
+        const a = t * Math.PI * 7 + rnd() * 0.5;
+        lightPos.push(x + Math.cos(a) * r * 1.02, y, z + Math.sin(a) * r * 1.02);
+        lightSeed.push(rnd());
+      }
+    }
+    const merged = mergeGeometries(all, false)!;
+    all.forEach((g) => g.dispose());
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute("position", new THREE.Float32BufferAttribute(lightPos, 3));
+    lg.setAttribute("aSeed", new THREE.Float32BufferAttribute(lightSeed, 1));
+    const lm = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uSize: { value: 9 * dpr }, uTex: { value: tex } },
+      vertexShader: PINE_LIGHT_VERT,
+      fragmentShader: PINE_LIGHT_FRAG,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    });
+    return { tree: merged, lights: lg, lightMat: lm };
+  }, [tex, dpr]);
+  useEffect(() => () => { tree.dispose(); lights.dispose(); lightMat.dispose(); }, [tree, lights, lightMat]);
+  useEffect(() => () => tex.dispose(), [tex]);
+  useFrame((_, dt) => {
+    lightMat.uniforms.uTime.value += Math.min(dt, 0.05);
+  });
+  return (
+    <group>
+      <mesh geometry={tree}>
+        <meshBasicMaterial vertexColors toneMapped={false} fog={false} />
+      </mesh>
+      <points geometry={lights} material={lightMat} frustumCulled={false} />
+    </group>
+  );
 }
