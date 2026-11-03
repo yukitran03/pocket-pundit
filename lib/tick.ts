@@ -4,7 +4,7 @@ import { q, withLease } from "./db.ts";
 import { processMemoryQueue } from "./memory.ts";
 import { matchState, timeline } from "./feed.ts";
 import { computeDrama } from "./drama.ts";
-import { askText, edit, ratingKeyboard, send, sendBrief, tg } from "./telegram.ts";
+import { askText, edit, ratingKeyboard, reveal, send, sendBrief, tg } from "./telegram.ts";
 import { localParts, walruscan } from "./util.ts";
 import { enqueueMemory } from "./memory.ts";
 import { buildTaste, lessonMemory, parseMemory, humanKey } from "./taste.ts";
@@ -111,7 +111,8 @@ async function notifyStored(chatId: number, messageId: number, blobId: string) {
   const job = await q<any>(`select p.* from picks p where p.ask_message_id = $1 limit 1`, [messageId]);
   if (job[0]) {
     const p = job[0];
-    await edit(chatId, messageId, `${askText(p).replace("\n\nDid you watch it?", "")}\n\nYou: <b>${p.rating}</b> · ✅ stored on Walrus · <a href="${walruscan(blobId)}">${short}</a>`);
+    await edit(chatId, messageId, `${askText(p).replace("\n\nDid you watch it?", "")}\n\nYou: <b>${p.rating}</b> · ✅ stored on Walrus · <a href="${walruscan(blobId)}">${short}</a>
+${reveal(p)}`);
   } else {
     await tg("sendMessage", {
       chat_id: chatId,

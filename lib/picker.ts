@@ -159,7 +159,7 @@ function signalPhrase(sig: string): string {
   )[sig] ?? sig;
 }
 
-export function explain(c: Candidate, taste: Taste | null, arm: "memory" | "control"): { reasons: string[]; cites: Cite[] } {
+export function explain(c: Candidate, taste: Taste | null, arm: "memory" | "control"): { reasons: string[]; cites: Cite[]; neutral: string[]; memoryReasons: string[] } {
   const reasons: string[] = [];
   const cites: Cite[] = [];
   if (arm === "memory" && taste) {
@@ -178,16 +178,19 @@ export function explain(c: Candidate, taste: Taste | null, arm: "memory" | "cont
     const neg = [...c.contribs].filter((x) => x.value < -0.08).sort((a, b) => a.value - b.value)[0];
     if (neg && reasons.length < 3) reasons.push(`Despite ${neg.key.startsWith("kick:") ? "the kick-off time" : signalPhrase(neg.key.split(":")[1])}, it still ranks high tonight.`);
   }
-  if (c.avgGoals !== null && c.avgGoals >= 2.8) reasons.push(`Both sides average ${c.avgGoals.toFixed(1)} goals a game lately (${formStr(c.hForm)} / ${formStr(c.aForm)}).`);
-  else if (c.hForm && c.aForm && c.exp.tense >= 0.6) reasons.push(`Evenly matched on form: ${formStr(c.hForm)} vs ${formStr(c.aForm)}.`);
-  if (c.f.stage && BIG_STAGE.test(c.f.stage)) reasons.push(`${c.f.stage}: something is on the line.`);
-  if (reasons.length < 2) reasons.push(`${c.label}, kick-off ${c.localKick} your time.`);
-  return { reasons: reasons.slice(0, 3), cites };
+  // Neutral reasons are shown in the blind Telegram brief for every pick; memory reasons are revealed after rating.
+  const memoryReasons = [...reasons];
+  const neutral: string[] = [];
+  if (c.avgGoals !== null && c.avgGoals >= 2.8) neutral.push(`Both sides average ${c.avgGoals.toFixed(1)} goals a game lately (${formStr(c.hForm)} / ${formStr(c.aForm)}).`);
+  else if (c.hForm && c.aForm && c.exp.tense >= 0.6) neutral.push(`Evenly matched on form: ${formStr(c.hForm)} vs ${formStr(c.aForm)}.`);
+  if (c.f.stage && BIG_STAGE.test(c.f.stage)) neutral.push(`${c.f.stage}: something is on the line.`);
+  if (neutral.length < 2) neutral.push(`${c.label}, kick-off ${c.localKick} your time.`);
+  return { reasons: [...memoryReasons, ...neutral].slice(0, 3), cites, neutral: neutral.slice(0, 2), memoryReasons };
 }
 
 export interface BriefResult {
   briefDate: string;
-  picks: { id: string; slot: number; arm: "memory" | "control"; c: Candidate; reasons: string[]; cites: Cite[]; score: number }[];
+  picks: { id: string; slot: number; arm: "memory" | "control"; c: Candidate; reasons: string[]; neutral: string[]; cites: Cite[]; score: number }[];
   considered: number;
   recallOk: boolean;
   memoriesUsed: number;
@@ -220,8 +223,6 @@ export async function buildBrief(user: UserRow, now = new Date()): Promise<Brief
   const byMem = [...cands].sort((a, b) => b.mem - a.mem);
   for (const c of byMem) {
     if (chosen.length >= 2) break;
-    // keep the two memory picks in different competitions when possible
-    if (chosen.some((x) => x.c.f.compId === c.f.compId) && byMem.length > 4) continue;
     chosen.push({ arm: "memory", c });
   }
   const control = [...cands].sort((a, b) => b.base - a.base).find((c) => !chosen.some((x) => x.c.f.matchId === c.f.matchId));
@@ -232,16 +233,16 @@ export async function buildBrief(user: UserRow, now = new Date()): Promise<Brief
   const picks: BriefResult["picks"] = [];
   for (let i = 0; i < order.length; i++) {
     const { arm, c } = order[i];
-    const { reasons, cites } = explain(c, taste, arm);
+    const { reasons, cites, neutral, memoryReasons } = explain(c, taste, arm);
     const id = shortId();
     const score = Math.round(arm === "memory" ? c.mem : c.base);
     const inserted = await q(
       `insert into picks (id, user_id, brief_date, slot, arm, match_id, comp_id, season_id, stage_id, competition, stage, home, away, home_id, away_id, kickoff, score, reasons, cites, features)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb)
        on conflict (user_id, brief_date, match_id) do nothing returning id`,
-      [id, user.id, date, i + 1, arm, c.f.matchId, c.f.compId, c.f.seasonId, c.f.stageId, c.label, c.f.stage, c.f.home, c.f.away, c.f.homeId, c.f.awayId, c.f.kickoff, score, JSON.stringify(reasons), JSON.stringify(cites), JSON.stringify({ base: Math.round(c.base), mem: Math.round(c.mem), bucket: c.bucket, exp: c.exp, contribs: c.contribs })],
+      [id, user.id, date, i + 1, arm, c.f.matchId, c.f.compId, c.f.seasonId, c.f.stageId, c.label, c.f.stage, c.f.home, c.f.away, c.f.homeId, c.f.awayId, c.f.kickoff, score, JSON.stringify(reasons), JSON.stringify(cites), JSON.stringify({ base: Math.round(c.base), mem: Math.round(c.mem), bucket: c.bucket, exp: c.exp, contribs: c.contribs, neutral, memoryReasons })],
     );
-    if (inserted.length) picks.push({ id, slot: i + 1, arm, c, reasons, cites, score });
+    if (inserted.length) picks.push({ id, slot: i + 1, arm, c, reasons, neutral, cites, score });
   }
   await q(`insert into scans (user_id, brief_date, considered) values ($1,$2,$3) on conflict (user_id, brief_date) do update set considered = excluded.considered`, [user.id, date, fixtures.length]);
   return { briefDate: date, picks, considered: fixtures.length, recallOk: recall.ok, memoriesUsed: taste?.memoriesUsed ?? 0, recallMs: recall.latencyMs };

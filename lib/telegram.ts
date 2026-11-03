@@ -104,7 +104,7 @@ export function briefText(user: UserRow, b: BriefResult, dayIndex: number): stri
   for (const p of [...b.picks].sort((a, c) => a.slot - c.slot)) {
     lines.push(`<b>${p.slot}. ${esc(p.c.f.home)} v ${esc(p.c.f.away)}</b>`);
     lines.push(`${esc(p.c.label)} · ${p.c.localKick} · <b>${p.score}</b>/100`);
-    for (const r of p.reasons) lines.push(`• ${esc(r)}`);
+    for (const r of p.neutral) lines.push(`• ${esc(r)}`);
     lines.push("");
   }
   if (!b.picks.length) lines.push("Nothing kicks off in your window tonight. I'll look again tomorrow.");
@@ -171,7 +171,16 @@ async function handleRating(cb: any, pickId: string, code: string) {
   const msgId = cb.message?.message_id;
   await enqueueMemory({ userId: p.user_id, namespace: p.namespace, kind: "rating", text, idem: `rating:${pickId}`, notifyChat: cb.message?.chat?.id, notifyMessage: msgId });
   await tg("answerCallbackQuery", { callback_query_id: cb.id, text: "Saved. Writing it to your Walrus memory…" });
-  if (msgId) await edit(cb.message.chat.id, msgId, `${askText(p).replace("\n\nDid you watch it?", "")}\n\nYou: <b>${RATING_WORD[rating]}</b> · ⏳ writing to Walrus…`);
+  if (msgId) await edit(cb.message.chat.id, msgId, `${askText(p).replace("\n\nDid you watch it?", "")}\n\nYou: <b>${RATING_WORD[rating]}</b> · ⏳ writing to Walrus…\n${reveal(p)}`);
+}
+
+/** After a rating, unblind the pick: was it chosen with memory, and which memories? */
+export function reveal(p: any): string {
+  const f = p.features ?? {};
+  if (p.arm === "control") return "🔓 That was the <b>memory-off</b> pick (the control in your A/B).";
+  const why: string[] = f.memoryReasons ?? [];
+  const n = (p.cites ?? []).length;
+  return `🔓 That was a <b>memory</b> pick${why.length ? `: ${esc(why[0])}` : " (no memories yet, so it ranked like a neutral fan)"}${n ? ` · cited ${n} memor${n === 1 ? "y" : "ies"}` : ""}.`;
 }
 
 async function teach(user: UserRow, text: string) {
