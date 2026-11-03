@@ -1,18 +1,31 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 
 /**
- * Deterministic monogram crest. We never show real club badges (licensing, and the product's
- * no-club-branding rule), so each team gets a shield with its initials, coloured from a hash of its
- * name. The same name always gives the same crest, everywhere.
+ * Deterministic monogram crest: a shield with the team's initials, coloured from a hash of its name, so the
+ * same name always gives the same crest. When the server enables official crests (OFFICIAL_CRESTS=1) it
+ * passes the public feed's team picture as `logo`; if that image fails, the monogram shows instead.
  */
 
 import { CREST_PALETTE, hashName, teamInitials } from "./crest";
 
 const SHIELD = "M20 1.6 36.5 6.4v14.8c0 11-6.6 19.2-16.5 23.4C10.1 40.4 3.5 32.2 3.5 21.2V6.4Z";
 
-export function TeamCrest({ name, size = 44, className = "" }: { name: string; size?: number; className?: string }) {
+export function TeamCrest({ name, size = 44, className = "", logo }: { name: string; size?: number; className?: string; logo?: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (logo && !failed) {
+    return (
+      <span className={`crest grid shrink-0 place-items-center ${className}`} style={{ width: size, height: (size * 46) / 40 }} aria-hidden>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={logo} alt="" width={size} height={size} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="h-auto max-h-full w-full object-contain drop-shadow-[0_2px_6px_rgb(0_0_0_/_0.45)]" />
+      </span>
+    );
+  }
+  return <MonogramCrest name={name} size={size} className={className} />;
+}
+
+function MonogramCrest({ name, size, className }: { name: string; size: number; className: string }) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const h = hashName(name);
   const c = CREST_PALETTE[h % CREST_PALETTE.length];

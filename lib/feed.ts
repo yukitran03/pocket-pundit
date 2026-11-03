@@ -17,6 +17,8 @@ export interface Fixture {
   homeId: string | null;
   awayId: string | null;
   country: string | null; // home team country code, used to label domestic leagues
+  homeLogo?: string | null; // team picture from the public feed's PictureUrl (shown only if OFFICIAL_CRESTS=1)
+  awayLogo?: string | null;
   homeScore: number | null;
   awayScore: number | null;
   status: number; // 0 played, 1 scheduled, 3 live, others = postponed/abandoned/etc.
@@ -40,6 +42,10 @@ export interface TimelineEvent {
 }
 
 const desc = (arr: any): string => (Array.isArray(arr) && arr[0]?.Description) || "";
+
+/** "…/picture/teams-{format}-{size}/123" → a concrete square PNG URL on the public API. */
+const picture = (tpl: unknown): string | null =>
+  typeof tpl === "string" && tpl.startsWith(BASE + "/picture/") ? tpl.replace("{format}", "sq").replace("{size}", "3") : null;
 
 async function getJson(path: string, timeoutMs = 15000): Promise<any> {
   const ctrl = new AbortController();
@@ -70,6 +76,8 @@ function toFixture(m: any): Fixture | null {
     homeId: m.Home?.IdTeam ?? null,
     awayId: m.Away?.IdTeam ?? null,
     country: m.Home?.IdCountry ?? null,
+    homeLogo: picture(m.Home?.PictureUrl),
+    awayLogo: picture(m.Away?.PictureUrl),
     homeScore: m.HomeTeamScore ?? m.Home?.Score ?? null,
     awayScore: m.AwayTeamScore ?? m.Away?.Score ?? null,
     status: typeof m.MatchStatus === "number" ? m.MatchStatus : 1,

@@ -184,7 +184,7 @@ function FeaturedVs({ m, tz, now }: { m: TonightMatch; tz: string; now: number |
         <span className="chip !h-auto min-h-6 !whitespace-normal py-0.5">{m.competition}</span>
       </div>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-stretch lg:gap-8">
-        <VsPanel home={m.home} away={m.away} size="lg" fill center={<KickoffCell m={m} tz={tz} now={now} big />} />
+        <VsPanel home={m.home} away={m.away} logos={m.logos} size="lg" fill center={<KickoffCell m={m} tz={tz} now={now} big />} />
         <div className="min-w-0">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-chalk-3">Ranked by your pundit with no personal memory.</p>
@@ -221,11 +221,11 @@ function VsRow({ m, rank, tz, now, index = 0 }: { m: TonightMatch; rank: number;
         <div aria-hidden className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2.5 sm:gap-3">
           <span className="flex min-w-0 items-center justify-end gap-2 text-right">
             <span className="min-w-0 font-semibold leading-tight text-chalk [text-wrap:balance]">{m.home}</span>
-            <TeamCrest name={m.home} size={28} />
+            <TeamCrest name={m.home} size={28} logo={m.logos?.home} />
           </span>
           <span className="vs-plate h-6 px-1.5"><span className="font-display text-[0.95rem] font-extrabold leading-none">VS</span></span>
           <span className="flex min-w-0 items-center gap-2">
-            <TeamCrest name={m.away} size={28} />
+            <TeamCrest name={m.away} size={28} logo={m.logos?.away} />
             <span className="min-w-0 font-semibold leading-tight text-chalk [text-wrap:balance]">{m.away}</span>
           </span>
         </div>
@@ -297,7 +297,7 @@ function ReplayCard({ r, tz, now }: { r: ReplayMatch; tz: string; now: number | 
         {now ? <span className="sr-only">, {fmtAgo(r.kickoff, now)}</span> : null}
       </p>
       <p className="sr-only">{r.home} versus {r.away}</p>
-      <VsPanel home={r.home} away={r.away} className="mt-3" center={<span className="text-xs text-chalk-3">Full time</span>} />
+      <VsPanel home={r.home} away={r.away} logos={r.logos} className="mt-3" center={<span className="text-xs text-chalk-3">Full time</span>} />
       <Meter className="mt-4" value={r.drama} label="Drama" compact />
       {r.vibe.length ? (
         <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="What it was like">

@@ -43,8 +43,15 @@ export interface Pick {
   rating: Rating | null;
   drama: Drama | null;
   form?: MatchForm | null; // recent form of both sides when the pick was made (from the public feed)
+  logos?: TeamLogos | null; // official crests, only when the server enables them
   // Tonight's brief is written to Walrus before kick-off, so picks (and which arm chose them) can't be edited later.
   lock?: { blobId: string | null; lockedAt: string; minutesBeforeKickoff: number } | null;
+}
+
+/** Team pictures from the public football feed. Absent unless the server enables official crests. */
+export interface TeamLogos {
+  home: string | null;
+  away: string | null;
 }
 
 /** Recent form of one side (last ~5 matches in the feed). */
@@ -75,6 +82,7 @@ export interface TonightMatch {
   score: number; // 0..100 "worth watching" for a neutral fan
   reasons: string[]; // at most 2, short
   form?: MatchForm | null;
+  logos?: TeamLogos | null;
 }
 
 export interface ReplayMatch {
@@ -87,6 +95,7 @@ export interface ReplayMatch {
   vibe: string[]; // spoiler-safe words only, e.g. "late drama", "end to end", "tense"
   homeScore: number | null; // the UI hides these until the viewer chooses to reveal
   awayScore: number | null;
+  logos?: TeamLogos | null;
 }
 
 export interface TonightResponse {

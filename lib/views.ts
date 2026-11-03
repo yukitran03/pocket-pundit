@@ -34,6 +34,7 @@ function toPick(p: any, now = Date.now(), locks?: Map<string, Lock>): Pick {
     rating: p.rating,
     drama: p.drama,
     form: p.features?.form ?? null,
+    logos: env.officialCrests() ? p.features?.logos ?? null : null,
     lock: lk && lockMins !== null && lockMins > 0 ? { blobId: lk.blobId, lockedAt: lk.storedAt, minutesBeforeKickoff: lockMins } : null,
   };
 }

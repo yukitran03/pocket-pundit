@@ -19,6 +19,8 @@ export const env = {
   appUrl: () => (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, ""),
   databaseUrl: () => process.env.DATABASE_URL || process.env.POSTGRES_URL || "",
   publicFeedUser: () => process.env.PUBLIC_FEED_USER || "",
+  // Off by default: club crests are club trademarks; turn on only once their use has been cleared.
+  officialCrests: () => process.env.OFFICIAL_CRESTS === "1",
 };
 
 // Mainnet constants observed on 2026-11-02 (relayer /config and on-chain reads via Tatum).

@@ -29,9 +29,11 @@ export function VsPanel({
   titleId,
   className = "",
   fill = false,
+  logos,
 }: {
   home: string;
   away: string;
+  logos?: { home: string | null; away: string | null } | null;
   size?: Size;
   center?: ReactNode;
   score?: { home: number; away: number } | null;
@@ -59,7 +61,7 @@ export function VsPanel({
         </svg>
         <div aria-hidden className={`vs-grid relative grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center ${size === "lg" ? "gap-3 p-5 sm:gap-6 sm:p-8" : "gap-2 p-4"}`}>
           <div className="vs-team flex min-w-0 flex-col items-start gap-2.5 text-left">
-            <TeamCrest name={home} size={crest} className="vs-crest" />
+            <TeamCrest name={home} size={crest} className="vs-crest" logo={logos?.home} />
             <p className="vs-name w-full font-display font-extrabold leading-[0.92] text-chalk [text-wrap:balance]" style={nameStyle(home, size)}>{home}</p>
           </div>
           <div className={`flex flex-col items-center text-center ${size === "lg" ? "min-w-[4.75rem] gap-2.5 sm:min-w-[6.5rem]" : "min-w-[4.25rem] gap-1.5"}`}>
@@ -67,7 +69,7 @@ export function VsPanel({
             {center}
           </div>
           <div className="vs-team flex min-w-0 flex-col items-end gap-2.5 text-right">
-            <TeamCrest name={away} size={crest} className="vs-crest" />
+            <TeamCrest name={away} size={crest} className="vs-crest" logo={logos?.away} />
             <p className="vs-name w-full font-display font-extrabold leading-[0.92] text-chalk [text-wrap:balance]" style={nameStyle(away, size)}>{away}</p>
           </div>
         </div>

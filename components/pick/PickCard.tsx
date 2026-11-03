@@ -45,6 +45,7 @@ export function PickCard({ pick, tz, openCites = false, sampleLabel, showTz = fa
         <VsPanel
           home={pick.home}
           away={pick.away}
+          logos={pick.logos}
           score={hasScore ? { home: pick.homeScore!, away: pick.awayScore! } : null}
           center={
             <span className="flex flex-col items-center gap-0.5">

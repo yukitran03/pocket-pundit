@@ -2,6 +2,7 @@
 // Upcoming/live matches in the next 12 hours, ranked; plus last night's best matches, spoiler-free.
 import type { ReplayMatch, TonightMatch, TonightResponse } from "./contract.ts";
 import { cached } from "./db.ts";
+import { env } from "./env.ts";
 import { fixturesBetween, liveNow, teamForm, timeline, type Fixture, type TeamForm } from "./feed.ts";
 import { computeDrama } from "./drama.ts";
 import { NOT_ELEVEN_A_SIDE, PRIOR_OF, scoreCandidates, type Candidate } from "./picker.ts";
@@ -21,7 +22,7 @@ const VIBE: Record<string, string> = {
  */
 export async function tonightView(tz: string, now = new Date()): Promise<TonightResponse> {
   const bucket = Math.floor(now.getTime() / 600_000);
-  const v = await cached(`view:tonight:v2:${bucket}`, 900, async () => {
+  const v = await cached(`view:tonight:v2:${env.officialCrests() ? "crests" : "plain"}:${bucket}`, 900, async () => {
     const [tonight, scanned] = await upcoming(now);
     const replays = await lastNight(now).catch(() => [] as ReplayMatch[]);
     return { scanned, tonight, replays, updatedAt: new Date().toISOString() };
@@ -77,6 +78,7 @@ async function upcoming(now: Date): Promise<[TonightMatch[], number]> {
       score: Math.round(c.base),
       reasons: publicReasons(c),
       form: { home: c.hForm, away: c.aForm },
+      logos: env.officialCrests() ? { home: c.f.homeLogo ?? null, away: c.f.awayLogo ?? null } : null,
     });
   }
   return [out, pool.length];
@@ -105,5 +107,6 @@ async function lastNight(now: Date): Promise<ReplayMatch[]> {
       vibe: d.tags.map((t) => VIBE[t]).filter(Boolean).slice(0, 3),
       homeScore: f.homeScore,
       awayScore: f.awayScore,
+      logos: env.officialCrests() ? { home: f.homeLogo ?? null, away: f.awayLogo ?? null } : null,
     }));
 }
