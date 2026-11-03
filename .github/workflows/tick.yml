@@ -1,0 +1,22 @@
+name: scheduler tick
+
+# Vercel Hobby crons run once a day, so the frequent heartbeat comes from here.
+# Every 30 minutes while the repo is private (Actions minutes); tighten to */10 once it is public.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Run one scheduler pass
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -sS --fail-with-body --max-time 300 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_URL}/api/cron/tick"

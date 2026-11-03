@@ -1,0 +1,185 @@
+// Assembles the JSON the web UI renders (see lib/contract.ts).
+import type { ArmStats, MeResponse, MemoryRow, Pick, ProofResponse, StatsResponse, WriteStatus, MemoryKind } from "./contract.ts";
+import { q, one, cached } from "./db.ts";
+import { env } from "./env.ts";
+import { buildTaste, parseMemory, tasteToContract } from "./taste.ts";
+import { localParts, walruscan, suiscanObject, suiscanAccount, blobIdToU256, slug } from "./util.ts";
+import { chainInfo, memwalAccount, ownedBlobs, type ChainBlob } from "./tatum.ts";
+import { memwal } from "./memory.ts";
+
+function toPick(p: any, now = Date.now()): Pick {
+  const k = new Date(p.kickoff).getTime();
+  const settled = !!p.settled_at;
+  const status = settled ? "finished" : k > now ? "upcoming" : "live";
+  return {
+    id: p.id,
+    briefDate: p.brief_date,
+    slot: p.slot,
+    arm: p.rating || settled ? p.arm : null,
+    kickoff: new Date(p.kickoff).toISOString(),
+    competition: p.competition,
+    stage: p.stage,
+    home: p.home,
+    away: p.away,
+    homeScore: p.home_score,
+    awayScore: p.away_score,
+    status,
+    score: Math.round(Number(p.score)),
+    reasons: p.reasons ?? [],
+    cites: p.cites ?? [],
+    rating: p.rating,
+    drama: p.drama,
+  };
+}
+
+function armStats(rows: any[]): ArmStats {
+  const rated = rows.filter((r) => r.rating && r.rating !== "skipped");
+  const val = (r: string) => (r === "loved" ? 2 : r === "fine" ? 1 : 0);
+  const dramas = rows.map((r) => r.drama?.score).filter((x) => typeof x === "number");
+  return {
+    n: rows.filter((r) => r.rating).length,
+    loved: rows.filter((r) => r.rating === "loved").length,
+    fine: rows.filter((r) => r.rating === "fine").length,
+    bailed: rows.filter((r) => r.rating === "bailed").length,
+    skipped: rows.filter((r) => r.rating === "skipped").length,
+    avgDrama: dramas.length ? Math.round(dramas.reduce((a, b) => a + b, 0) / dramas.length) : null,
+    score: rated.length ? Number((rated.reduce((s, r) => s + val(r.rating), 0) / rated.length).toFixed(2)) : null,
+  };
+}
+
+const STATUS: Record<string, WriteStatus> = { queued: "queued", pending: "pending", stored: "stored", failed: "failed" };
+
+/** On-chain Blob objects for the account owner, keyed by u256 blob id. Cached: the chain is slow-moving. */
+export async function chainBlobMap(): Promise<{ owner: string | null; blobs: Map<string, ChainBlob> }> {
+  const data = await cached("proof:chainblobs", 300, async () => {
+    const acct = await memwalAccount();
+    const blobs = await ownedBlobs(acct.owner);
+    return { owner: acct.owner, blobs };
+  }).catch(() => ({ owner: null, blobs: [] as ChainBlob[] }));
+  return { owner: data.owner, blobs: new Map(data.blobs.map((b: ChainBlob) => [b.blobIdU256, b])) };
+}
+
+export async function meView(userId: number): Promise<MeResponse | null> {
+  const u = await one<any>(`select * from users where id = $1`, [userId]);
+  if (!u) return null;
+  const today = localParts(new Date(), u.tz).date;
+  const picks = await q<any>(`select * from picks where user_id = $1 order by brief_date desc, slot asc limit 120`, [userId]);
+  const jobs = await q<any>(`select * from memory_jobs where user_id = $1 order by id desc limit 400`, [userId]);
+  const { blobs } = await chainBlobMap();
+  const memories: MemoryRow[] = jobs.map((j) => {
+    const chain = j.blob_id ? blobs.get(blobIdToU256(j.blob_id)) : undefined;
+    return {
+      blobId: j.blob_id,
+      kind: j.kind as MemoryKind,
+      text: j.text,
+      createdAt: new Date(j.created_at).toISOString(),
+      status: STATUS[j.status] ?? "queued",
+      namespace: j.namespace,
+      suiObjectId: chain?.objectId ?? null,
+      endEpoch: chain?.endEpoch ?? null,
+      walruscanUrl: j.blob_id ? walruscan(j.blob_id) : null,
+      suiscanUrl: chain ? suiscanObject(chain.objectId) : null,
+    };
+  });
+  const stored = jobs.filter((j) => j.status === "stored" && j.blob_id);
+  const taste = buildTaste(stored.map((j) => parseMemory(j.blob_id, j.text)), today);
+  const labels = new Map<string, string>();
+  for (const p of picks) {
+    labels.set(`comp:${p.comp_id}`, p.competition);
+    labels.set(`team:${slug(p.home)}`, p.home);
+    labels.set(`team:${slug(p.away)}`, p.away);
+  }
+  for (const [id, label] of Object.entries(KNOWN_COMPS)) if (!labels.has(`comp:${id}`)) labels.set(`comp:${id}`, label);
+  const dayIndex = Math.max(1, Math.floor((Date.now() - new Date(u.created_at).getTime()) / 86_400_000) + 1);
+  return {
+    user: { name: u.name, tz: u.tz, briefHour: u.brief_hour, windowStart: u.window_start, windowEnd: u.window_end, namespace: u.namespace, joinedAt: new Date(u.created_at).toISOString(), dayIndex },
+    today: picks.filter((p) => p.brief_date === today).map((p) => toPick(p)),
+    history: picks.filter((p) => p.brief_date !== today).slice(0, 14 * 3).map((p) => toPick(p)),
+    taste: tasteToContract(taste, labels),
+    memories,
+    ab: { memory: armStats(picks.filter((p) => p.arm === "memory")), control: armStats(picks.filter((p) => p.arm === "control")) },
+    shares: [],
+  };
+}
+
+export const KNOWN_COMPS: Record<string, string> = {
+  "2000001032": "UEFA Champions League",
+  "2000000000": "Premier League (ENG)",
+  "2000000037": "LaLiga (ESP)",
+  "2000000026": "Serie A (ITA)",
+  "2000000019": "Bundesliga (GER)",
+  "2000000018": "Ligue 1 (FRA)",
+  "2000000092": "V.League 1 (VIE)",
+  "504": "UEFA Nations League",
+  "2000001033": "AFC Champions League Elite",
+  "2000000103": "MLS",
+  "2000001041": "UEFA Europa League",
+};
+
+export async function statsView(): Promise<StatsResponse> {
+  return cached("view:stats", 60, async () => {
+    const [m] = await q<any>(`select count(*) filter (where status='stored')::int stored from memory_jobs`);
+    const [u] = await q<any>(`select count(*)::int n from users where onboard_step = 'done'`);
+    const picks = await q<any>(`select arm, rating, drama from picks`);
+    const [s] = await q<any>(`select coalesce(sum(considered),0)::int n from scans`);
+    const feedUser = env.publicFeedUser();
+    const lessons = feedUser
+      ? await q<any>(`select text, created_at, blob_id from memory_jobs where user_id = $1 and kind in ('lesson','rating') and status = 'stored' order by id desc limit 6`, [Number(feedUser)])
+      : [];
+    return {
+      memoriesStored: m.stored,
+      users: u.n,
+      picksSent: picks.length,
+      picksRated: picks.filter((p) => p.rating).length,
+      matchesScanned: s.n,
+      ab: { memory: armStats(picks.filter((p) => p.arm === "memory")), control: armStats(picks.filter((p) => p.arm === "control")) },
+      recentLessons: lessons.map((l) => ({ text: l.text.split(" tags: ")[0], createdAt: new Date(l.created_at).toISOString(), blobId: l.blob_id })),
+      updatedAt: new Date().toISOString(),
+    };
+  });
+}
+
+export async function proofView(): Promise<ProofResponse> {
+  return cached("view:proof", 300, async () => {
+    const via: string[] = [];
+    let account: ProofResponse["account"] = null;
+    let chain = { epoch: null as string | null, checkpoint: null as string | null };
+    try {
+      const ci = await chainInfo();
+      chain = { epoch: ci.epoch, checkpoint: ci.checkpoint };
+      via.push("Tatum gRPC · LedgerService/GetServiceInfo");
+    } catch {}
+    try {
+      const a = await memwalAccount();
+      account = { id: a.id, owner: a.owner, active: a.active, delegateKeys: a.delegateKeys };
+      via.push("Tatum gRPC · LedgerService/GetObject");
+    } catch {}
+    const { blobs } = await chainBlobMap();
+    if (blobs.size) via.push("Tatum gRPC · StateService/ListOwnedObjects");
+    const stored = await q<any>(`select blob_id, namespace from memory_jobs where status = 'stored' and blob_id is not null order by id desc`);
+    let matched = 0;
+    const sample: ProofResponse["blobs"]["sample"] = [];
+    for (const s of stored) {
+      const c = blobs.get(blobIdToU256(s.blob_id));
+      if (c) {
+        matched++;
+        if (sample.length < 12) sample.push({ objectId: c.objectId, blobId: s.blob_id, namespace: s.namespace, size: c.size, endEpoch: c.endEpoch });
+      }
+    }
+    let relayer = { memories: stored.length, namespaces: 0 };
+    try {
+      const ns = await memwal().listNamespaces({ limit: 200 });
+      relayer = { memories: ns.namespaces.reduce((s: number, n: any) => s + Number(n.memory_count ?? 0), 0) || stored.length, namespaces: ns.namespaces.length };
+    } catch {}
+    return {
+      network: "mainnet",
+      account,
+      chain: { ...chain, via },
+      blobs: { onChainCount: blobs.size, sample },
+      relayer,
+      verified: { matched, missing: stored.length - matched },
+      checkedAt: new Date().toISOString(),
+      links: { account: account ? suiscanObject(account.id) : "", owner: account ? suiscanAccount(account.owner) : "" },
+    };
+  });
+}
