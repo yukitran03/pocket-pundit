@@ -62,3 +62,18 @@ describe("feed coverage", () => {
     expect(resultText({ ...p, home_score: 2, away_score: 1 })).toMatch(/Port 2–1 Beijing Guoan/);
   });
 });
+
+describe("public feed lines", () => {
+  it("rating memories become short, spoiler-free lines; old lessons lose their raw numbers", async () => {
+    process.env.APP_SECRET ||= "x";
+    const { feedItem } = await import("../lib/views.ts");
+    const r = feedItem("[rating] 2026-11-03 · Loved Northbridge 3–2 Eastvale (Premier League · Matchday 9); kicked off 21:00 my time. Drama 92/100: 5 goals. tags: verdict=1.00");
+    expect(r).toMatchObject({ kind: "rating", verdict: "loved", headline: "Loved Northbridge v Eastvale", detail: "Premier League · drama 92" });
+    expect(JSON.stringify({ h: r.headline, d: r.detail })).not.toMatch(/3–2/);
+    const f = feedItem("[rating] 2026-11-03 · Watched (fine) Công An Hà Nội v Kyoto Sanga (AFC Champions League Elite · League Stage); kicked off 19:15 my time. tags: verdict=0.35");
+    expect(f.headline).toBe("Fine Công An Hà Nội v Kyoto Sanga");
+    const l = feedItem("[lesson] 2026-11-03 · After 3 memories: strongest pulls are AFC Champions League Elite (+0.72) and evening kick-offs (+0.72). Memory picks average 2.00 vs 1.00 for memory-off picks (n=1/1; loved=2, fine=1, bailed=0).");
+    expect(l.kind).toBe("lesson");
+    expect(l.detail).toBe("After 3 memories: leans towards AFC Champions League Elite and evening kick-offs. Memory picks rate 2.0 vs 1.0 for memory-off picks.");
+  });
+});

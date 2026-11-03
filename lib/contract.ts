@@ -168,7 +168,8 @@ export interface StatsResponse {
   picksRated: number;
   matchesScanned: number; // fixtures considered across all briefs
   ab: { memory: ArmStats; control: ArmStats };
-  recentLessons: { text: string; createdAt: string; blobId: string | null }[]; // anonymised
+  // Anonymised and spoiler-free. headline/detail are ready to show; text is the raw memory sentence (no tags).
+  recentLessons: { text: string; createdAt: string; blobId: string | null; kind?: "rating" | "lesson"; verdict?: Rating | null; headline?: string; detail?: string }[];
   updatedAt: string;
 }
 

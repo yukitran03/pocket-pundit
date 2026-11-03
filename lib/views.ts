@@ -1,5 +1,5 @@
 // Assembles the JSON the web UI renders (see lib/contract.ts).
-import type { ArmStats, MeResponse, MemoryRow, Pick, ProofResponse, StatsResponse, WriteStatus, MemoryKind } from "./contract.ts";
+import type { ArmStats, MeResponse, MemoryRow, Pick, ProofResponse, Rating, StatsResponse, WriteStatus, MemoryKind } from "./contract.ts";
 import { q, one, cached } from "./db.ts";
 import { env } from "./env.ts";
 import { buildTaste, parseMemory, tasteToContract } from "./taste.ts";
@@ -131,8 +131,40 @@ export const KNOWN_COMPS: Record<string, string> = {
   "2000001041": "UEFA Europa League",
 };
 
+const VERDICT: [RegExp, Rating, string][] = [
+  [/^Loved /, "loved", "Loved"],
+  [/^Watched \(fine\) /, "fine", "Fine"],
+  [/^Bailed on /, "bailed", "Bailed on"],
+  [/^Skipped /, "skipped", "Didn't watch"],
+];
+
+/** Turn a stored memory sentence into a friendly, spoiler-free line for the public landing feed. */
+export function feedItem(raw: string): { text: string; kind: "rating" | "lesson"; verdict: Rating | null; headline: string; detail: string } {
+  const text = raw.split(" tags: ")[0];
+  const body = text.replace(/^\[(\w+)\]\s*(\d{4}-\d{2}-\d{2} · )?/, "");
+  if (/^\[rating\]/.test(text)) {
+    for (const [re, verdict, word] of VERDICT) {
+      if (!re.test(body)) continue;
+      const rest = body.replace(re, "");
+      const m = /^(.+?) (?:\d+–\d+|v) (.+?) \((.+?)\);/.exec(rest);
+      const drama = /Drama (\d+)\/100/.exec(rest)?.[1];
+      if (m) {
+        const comp = m[3].split(" · ")[0];
+        return { text, kind: "rating", verdict, headline: `${word} ${m[1]} v ${m[2]}`, detail: `${comp}${drama ? ` · drama ${drama}` : ""}` };
+      }
+    }
+  }
+  // Lessons: drop the raw weights and sample sizes older lessons carried.
+  const plain = body
+    .replace(/\s*\([+-]?\d\.\d{2}\)/g, "")
+    .replace(/strongest pulls are/i, "leans towards")
+    .replace(/Strongest pushes away:/i, "Cooler on")
+    .replace(/Memory picks average ([\d.]+) vs ([\d.]+) for memory-off picks \(n=(\d+)\/(\d+);[^)]*\)\./, (_, a: string, b: string) => `Memory picks rate ${Number(a).toFixed(1)} vs ${Number(b).toFixed(1)} for memory-off picks.`);
+  return { text, kind: "lesson", verdict: null, headline: "What the pundit learned", detail: plain };
+}
+
 export async function statsView(): Promise<StatsResponse> {
-  return cached("view:stats", 60, async () => {
+  return cached("view:stats:v2", 60, async () => {
     const [m] = await q<any>(`select count(*) filter (where status='stored')::int stored from memory_jobs`);
     const [u] = await q<any>(`select count(*)::int n from users where onboard_step = 'done'`);
     const picks = await q<any>(`select arm, rating, drama from picks`);
@@ -148,7 +180,7 @@ export async function statsView(): Promise<StatsResponse> {
       picksRated: picks.filter((p) => p.rating).length,
       matchesScanned: s.n,
       ab: { memory: armStats(picks.filter((p) => p.arm === "memory")), control: armStats(picks.filter((p) => p.arm === "control")) },
-      recentLessons: lessons.map((l) => ({ text: l.text.split(" tags: ")[0], createdAt: new Date(l.created_at).toISOString(), blobId: l.blob_id })),
+      recentLessons: lessons.map((l) => ({ ...feedItem(l.text), createdAt: new Date(l.created_at).toISOString(), blobId: l.blob_id })),
       updatedAt: new Date().toISOString(),
     };
   });

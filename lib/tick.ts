@@ -204,8 +204,8 @@ export async function composeLesson(userId: number, date: string): Promise<strin
   if (!rows.length) return null;
   const taste = buildTaste(rows.map((r) => parseMemory(r.blob_id, r.text)), date);
   const top = [...taste.weights.entries()].filter(([k]) => !k.startsWith("team:")).sort((a, b) => b[1].w - a[1].w);
-  const pulls = top.filter(([, v]) => v.w > 0.1).slice(0, 2).map(([k, v]) => `${labelFor(k)} (${v.w >= 0 ? "+" : ""}${v.w.toFixed(2)})`);
-  const pushes = top.filter(([, v]) => v.w < -0.1).slice(-2).map(([k, v]) => `${labelFor(k)} (${v.w.toFixed(2)})`);
+  const pulls = top.filter(([, v]) => v.w > 0.1).slice(0, 2).map(([k]) => labelFor(k));
+  const pushes = top.filter(([, v]) => v.w < -0.1).slice(-2).map(([k]) => labelFor(k));
   const ab = await q<any>(
     `select arm, count(*)::int n, avg(case rating when 'loved' then 2 when 'fine' then 1 when 'bailed' then 0 end)::float s
      from picks where user_id = $1 and rating is not null and rating <> 'skipped' group by arm`,
@@ -214,8 +214,12 @@ export async function composeLesson(userId: number, date: string): Promise<strin
   const arm = (a: string) => ab.find((x) => x.arm === a);
   const m = arm("memory");
   const c = arm("control");
-  const abText = m && c ? ` Memory picks average ${Number(m.s).toFixed(2)} vs ${Number(c.s).toFixed(2)} for memory-off picks (n=${m.n}/${c.n}; loved=2, fine=1, bailed=0).` : "";
-  return lessonMemory(date, `After ${rows.length} memories:${pulls.length ? ` strongest pulls are ${pulls.join(" and ")}.` : ""}${pushes.length ? ` Strongest pushes away: ${pushes.join(" and ")}.` : ""}${abText}`.replace(/:\s*$/, "."));
+  // Written for people (it's shown on the dashboard and the landing feed); lessons carry no weight tags.
+  const ratings = (x: any) => `${x.n} rating${x.n === 1 ? "" : "s"}`;
+  const abText = m && c ? ` So far memory picks rate ${Number(m.s).toFixed(1)} out of 2 and memory-off picks ${Number(c.s).toFixed(1)} (${ratings(m)} vs ${ratings(c)}).` : "";
+  const lean = pulls.length ? ` you lean towards ${pulls.join(" and ")}` : "";
+  const away = pushes.length ? `${lean ? "," : ""} you're cooler on ${pushes.join(" and ")}` : "";
+  return lessonMemory(date, `After ${rows.length} memories${lean || away ? ":" : "."}${lean}${away}${lean || away ? "." : ""}${abText}`);
 }
 
 function labelFor(k: string) {
