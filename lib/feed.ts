@@ -156,3 +156,19 @@ export async function timeline(matchId: string): Promise<TimelineEvent[] | null>
     }
   });
 }
+
+/** Matches in play right now (kicked off in the last 2.5h and status live), refreshed every ~4 minutes. */
+export async function liveNow(): Promise<(Fixture & { minute: number })[]> {
+  const now = Date.now();
+  const iso = (t: number) => new Date(t).toISOString().slice(0, 19) + "Z";
+  return cached(`feed:live:${Math.floor(now / 240_000)}`, 300, async () => {
+    const j = await getJson(`calendar/matches?from=${iso(now - 150 * 60_000)}&to=${iso(now)}&language=en&count=500`);
+    return (j?.Results || [])
+      .filter((m: any) => m.MatchStatus === 3)
+      .map((m: any) => {
+        const fx = toFixture(m);
+        return fx ? { ...fx, minute: parseMinute(m.MatchTime) } : null;
+      })
+      .filter(Boolean);
+  });
+}

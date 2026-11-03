@@ -125,6 +125,21 @@ const SCHEMA = [
     created_at timestamptz not null default now(),
     primary key (user_id, brief_date)
   )`,
+  `alter table users add column if not exists show_scores boolean not null default false`,
+  `alter table users add column if not exists alerts boolean not null default true`,
+  `alter table picks add column if not exists reminded_at timestamptz`,
+  `create table if not exists alerts (
+    user_id bigint not null,
+    match_id text not null,
+    kind text not null,
+    competition text, home text, away text, comp_id text,
+    minute real, home_score int, away_score int,
+    signals jsonb not null default '[]',
+    response text,
+    message_id bigint,
+    sent_at timestamptz not null default now(),
+    primary key (user_id, match_id)
+  )`,
 ];
 
 async function migrate(run: Exec) {

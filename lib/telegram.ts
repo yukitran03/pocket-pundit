@@ -9,6 +9,7 @@ import { dramaSummary } from "./drama.ts";
 import { localParts, fmtLocalTime, isValidTz, slug } from "./util.ts";
 import type { Drama, Rating } from "./contract.ts";
 import { fixturesBetween } from "./feed.ts";
+import { missedLastNight } from "./extras.ts";
 
 type Kb = { text: string; callback_data?: string; url?: string }[][];
 
@@ -99,7 +100,7 @@ async function leaguesKeyboard(userId: number): Promise<Kb> {
   return rows;
 }
 
-export function briefText(user: UserRow, b: BriefResult, dayIndex: number): string {
+export function briefText(user: UserRow, b: BriefResult, dayIndex: number, missed?: { home: string; away: string; competition: string; drama: number } | null): string {
   const lines = [`<b>Tonight's picks · day ${dayIndex}</b>`, `I scanned ${b.considered} fixtures in your window (${hh(user.window_start)}–${hh(user.window_end)}).`, ""];
   for (const p of [...b.picks].sort((a, c) => a.slot - c.slot)) {
     lines.push(`<b>${p.slot}. ${esc(p.c.f.home)} v ${esc(p.c.f.away)}</b>`);
@@ -108,6 +109,7 @@ export function briefText(user: UserRow, b: BriefResult, dayIndex: number): stri
     lines.push("");
   }
   if (!b.picks.length) lines.push("Nothing kicks off in your window tonight. I'll look again tomorrow.");
+  if (missed) lines.push(`📼 Worth the highlights from last night: <b>${esc(missed.home)} v ${esc(missed.away)}</b> (${esc(missed.competition)}), drama ${missed.drama}/100. No score here.`, "");
   lines.push(
     b.memoriesUsed
       ? `🧠 Shaped by ${b.memoriesUsed} memories recalled from Walrus (${(b.recallMs / 1000).toFixed(1)}s). One of these three was picked with memory off — your ratings tell me which approach works.`
@@ -120,8 +122,9 @@ export function briefText(user: UserRow, b: BriefResult, dayIndex: number): stri
 
 export async function sendBrief(user: UserRow, now = new Date()) {
   const b = await buildBrief(user, now);
+  const missed = await missedLastNight(user, now).catch(() => null);
   const days = Math.max(1, Math.floor((now.getTime() - new Date(user.created_at).getTime()) / 86_400_000) + 1);
-  await send(user.chat_id, briefText(user, b, days), [[{ text: "Why these? Open your memory", url: dashboardUrl(user.id) }]]);
+  await send(user.chat_id, briefText(user, b, days, missed),[[{ text: "Why these? Open your memory", url: dashboardUrl(user.id) }]]);
   await q(`update users set last_brief_date = $2 where id = $1`, [user.id, b.briefDate]);
   return b;
 }
@@ -139,9 +142,36 @@ export function ratingKeyboard(pickId: string): Kb {
   ];
 }
 
-export function askText(p: any): string {
+/** Full-time result with the drama breakdown (shown after the user has answered, or always if they opted in). */
+export function resultText(p: any): string {
   const d: Drama | null = p.drama;
-  return `<b>FT · ${esc(p.home)} ${p.home_score ?? "?"}–${p.away_score ?? "?"} ${esc(p.away)}</b>\n${esc(p.competition)}${d ? `\nDrama ${d.score}/100 — ${esc(dramaSummary(d))}.` : ""}\n\nDid you watch it?`;
+  return `<b>FT · ${esc(p.home)} ${p.home_score ?? "?"}–${p.away_score ?? "?"} ${esc(p.away)}</b>\n${esc(p.competition)}${d ? `\nDrama ${d.score}/100 — ${esc(dramaSummary(d))}.` : ""}`;
+}
+
+/** The post-match question. Spoiler-free by default: no score until you answer. */
+export function askText(p: any, showScores = false): string {
+  if (showScores) return `${resultText(p)}\n\nDid you watch it?`;
+  return `<b>Full time · ${esc(p.home)} v ${esc(p.away)}</b>\n${esc(p.competition)}\n\nDid you watch it? (No spoilers: I'll show the score once you answer.)`;
+}
+
+export function alertKeyboard(matchId: string): Kb {
+  return [[{ text: "📺 Switching on", callback_data: `al:${matchId}:y` }, { text: "Not now", callback_data: `al:${matchId}:n` }]];
+}
+
+async function handleAlertResponse(cb: any, matchId: string, code: string) {
+  const a = await one<any>(`select a.*, u.tz, u.namespace from alerts a join users u on u.id = a.user_id where a.user_id = $1 and a.match_id = $2`, [cb.from.id, matchId]);
+  if (!a || a.response) return tg("answerCallbackQuery", { callback_query_id: cb.id, text: a ? "Got it already." : "That alert has expired." });
+  const yes = code === "y";
+  await q(`update alerts set response = $3 where user_id = $1 and match_id = $2`, [cb.from.id, matchId, yes ? "switched-on" : "not-now"]);
+  const date = localParts(new Date(), a.tz).date;
+  const bucket = kickBucket(localParts(new Date(a.sent_at), a.tz).hour);
+  const sigs = (a.signals ?? []) as string[];
+  const text = yes
+    ? `[alert] ${date} · Switched on for ${a.home} v ${a.away} (${a.competition}) at ${Math.round(a.minute)}' when it was close. The live alert was useful. tags: verdict=0.60 comp=${a.comp_id} ${sigs.map((s) => `signal=${s}`).join(" ")} kick=${bucket}`
+    : `[alert] ${date} · Passed on a live alert for ${a.home} v ${a.away} at ${Math.round(a.minute)}'. tags: verdict=-0.25 kick=${bucket}`;
+  await enqueueMemory({ userId: cb.from.id, namespace: a.namespace, kind: "preference", text, idem: `alert:${cb.from.id}:${matchId}` });
+  await tg("answerCallbackQuery", { callback_query_id: cb.id, text: yes ? "Enjoy it. Noted in your memory." : "Noted. I'll be pickier." });
+  if (cb.message) await tg("editMessageReplyMarkup", { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: { inline_keyboard: [] } });
 }
 
 const RATING_CODE: Record<string, Rating> = { l: "loved", f: "fine", b: "bailed", s: "skipped" };
@@ -171,7 +201,7 @@ async function handleRating(cb: any, pickId: string, code: string) {
   const msgId = cb.message?.message_id;
   await enqueueMemory({ userId: p.user_id, namespace: p.namespace, kind: "rating", text, idem: `rating:${pickId}`, notifyChat: cb.message?.chat?.id, notifyMessage: msgId });
   await tg("answerCallbackQuery", { callback_query_id: cb.id, text: "Saved. Writing it to your Walrus memory…" });
-  if (msgId) await edit(cb.message.chat.id, msgId, `${askText(p).replace("\n\nDid you watch it?", "")}\n\nYou: <b>${RATING_WORD[rating]}</b> · ⏳ writing to Walrus…\n${reveal(p)}`);
+  if (msgId) await edit(cb.message.chat.id, msgId, `${resultText(p)}\n\nYou: <b>${RATING_WORD[rating]}</b> · ⏳ writing to Walrus…\n${reveal(p)}`);
 }
 
 /** After a rating, unblind the pick: was it chosen with memory, and which memories? */
@@ -207,7 +237,7 @@ async function teach(user: UserRow, text: string) {
 async function sendHelp(chatId: number, returning = false) {
   await send(
     chatId,
-    `${returning ? "Welcome back. " : ""}<b>Commands</b>\n/picks — tonight's picks\n/me — your memory dashboard\n/teach &lt;text&gt; — tell me a preference\n/settings — time zone, brief time, watch window\n/help — this list\n\nOr just type a preference, e.g. <i>I love late comebacks</i>.`,
+    `${returning ? "Welcome back. " : ""}<b>Commands</b>\n/picks — tonight's picks\n/me — your memory dashboard\n/teach &lt;text&gt; — tell me a preference\n/settings — time zone, brief time, watch window\n/alerts on|off — "worth switching on" pings during matches\n/spoilers on|off — show scores in full-time messages\n/help — this list\n\nOr just type a preference, e.g. <i>I love late comebacks</i>.`,
   );
 }
 
@@ -232,6 +262,16 @@ export async function handleUpdate(update: any) {
     if (command === "/help") return sendHelp(u.chat_id);
     if (command === "/me") return send(u.chat_id, "Your memory, picks and what I've learned:", [[{ text: "Open dashboard", url: dashboardUrl(u.id) }]]);
     if (command === "/settings") return showSettings(u);
+    if (command === "/spoilers") {
+      const on = (rest[0] || "").toLowerCase() === "on";
+      await q(`update users set show_scores = $2 where id = $1`, [u.id, on]);
+      return send(u.chat_id, on ? "Scores will show in full-time messages." : "Spoiler-free: I'll hide scores until you've answered.");
+    }
+    if (command === "/alerts") {
+      const off = (rest[0] || "").toLowerCase() === "off";
+      await q(`update users set alerts = $2 where id = $1`, [u.id, !off]);
+      return send(u.chat_id, off ? "Live alerts off." : "Live alerts on: at most twice a day, I'll ping you when a match in your window is worth switching on.");
+    }
     if (command === "/tz" && rest[0]) {
       if (!isValidTz(rest[0])) return send(u.chat_id, "That isn't a time zone I know. Try e.g. <code>/tz Asia/Ho_Chi_Minh</code>.");
       await q(`update users set tz = $2 where id = $1`, [u.id, rest[0]]);
@@ -260,6 +300,7 @@ export async function handleUpdate(update: any) {
     if (!u || !chatId) return tg("answerCallbackQuery", { callback_query_id: cb.id, text: "Send /start first." });
     const [kind, a, b] = data.split(":");
     if (kind === "r") return handleRating(cb, a, b);
+    if (kind === "al") return handleAlertResponse(cb, a, b);
     await tg("answerCallbackQuery", { callback_query_id: cb.id });
     if (kind === "set") {
       if (a === "tz") return send(chatId, "Where are you?", TZ_OPTIONS.map(([label, tz]) => [{ text: label, callback_data: `tz:${tz}` }]));

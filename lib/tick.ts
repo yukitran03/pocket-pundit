@@ -4,7 +4,9 @@ import { q, withLease } from "./db.ts";
 import { processMemoryQueue } from "./memory.ts";
 import { matchState, timeline } from "./feed.ts";
 import { computeDrama } from "./drama.ts";
-import { askText, edit, ratingKeyboard, reveal, send, sendBrief, tg } from "./telegram.ts";
+import { alertKeyboard, askText, edit, ratingKeyboard, resultText, reveal, send, sendBrief, tg } from "./telegram.ts";
+import { dueReminders, liveAlertsFor, liveNow } from "./extras.ts";
+import { fmtLocalTime } from "./util.ts";
 import { localParts, walruscan } from "./util.ts";
 import { enqueueMemory } from "./memory.ts";
 import { buildTaste, lessonMemory, parseMemory, humanKey } from "./taste.ts";
@@ -17,6 +19,8 @@ export interface TickReport {
   settled: number;
   asked: number;
   lessons: number;
+  reminders: number;
+  alerts: number;
   errors: string[];
   ms: number;
 }
@@ -25,7 +29,7 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
   return withLease("tick", 280, async () => {
     const t0 = Date.now();
     const errors: string[] = [];
-    const rep: TickReport = { memory: { submitted: 0, stored: 0, failed: 0 }, briefs: 0, settled: 0, asked: 0, lessons: 0, errors, ms: 0 };
+    const rep: TickReport = { memory: { submitted: 0, stored: 0, failed: 0 }, briefs: 0, settled: 0, asked: 0, lessons: 0, reminders: 0, alerts: 0, errors, ms: 0 };
     const guard = async (label: string, fn: () => Promise<void>) => {
       try {
         await fn();
@@ -58,7 +62,7 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
 
     await guard("settle", async () => {
       const due = await q<any>(
-        `select p.*, u.chat_id from picks p join users u on u.id = p.user_id
+        `select p.*, u.chat_id, u.show_scores from picks p join users u on u.id = p.user_id
          where p.settled_at is null and p.kickoff < now() - interval '110 minutes' and p.kickoff > now() - interval '4 days'
          order by p.kickoff asc limit 12`,
       );
@@ -72,11 +76,44 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
             await q(`update picks set status='finished', home_score=$2, away_score=$3, drama=$4::jsonb, settled_at=now() where id=$1`, [p.id, st.homeScore, st.awayScore, JSON.stringify(drama)]);
             rep.settled++;
             const fresh = { ...p, home_score: st.homeScore, away_score: st.awayScore, drama };
-            const msg = await send(Number(p.chat_id), askText(fresh), ratingKeyboard(p.id));
+            const msg = await send(Number(p.chat_id), askText(fresh, !!p.show_scores), ratingKeyboard(p.id));
             await q(`update picks set asked_at=now(), ask_message_id=$2 where id=$1`, [p.id, msg.message_id]);
             rep.asked++;
           } else if (st.status !== 1 && st.status !== 3 && Date.parse(p.kickoff) < now.getTime() - 6 * 3600_000) {
             await q(`update picks set status='void', settled_at=now() where id=$1`, [p.id]);
+          }
+        });
+      }
+    });
+
+    await guard("reminders", async () => {
+      for (const p of await dueReminders()) {
+        const mins = Math.max(1, Math.round((Date.parse(p.kickoff) - now.getTime()) / 60_000));
+        await send(Number(p.chat_id), `⏰ Kicks off in ${mins} min (${fmtLocalTime(new Date(p.kickoff).toISOString(), p.tz)}): <b>${escHtml(p.home)} v ${escHtml(p.away)}</b> · ${escHtml(p.competition)}`);
+        await q(`update picks set reminded_at = now() where id = $1`, [p.id]);
+        rep.reminders++;
+      }
+    });
+
+    await guard("alerts", async () => {
+      const live = await liveNow();
+      if (!live.length) return;
+      const users = await q<any>(`select * from users where active and onboard_step = 'done' and alerts`);
+      for (const u of users) {
+        await guard(`alerts ${u.id}`, async () => {
+          for (const a of await liveAlertsFor({ ...u, id: Number(u.id) }, now, live)) {
+            const score = u.show_scores ? ` ${a.f.homeScore ?? 0}–${a.f.awayScore ?? 0} ` : " v ";
+            const text = `🔥 <b>Worth switching on</b> · ${Math.round(a.f.minute)}'
+<b>${escHtml(a.f.home)}${score}${escHtml(a.f.away)}</b> · ${escHtml(a.f.competition)}
+${escHtml(a.why)}${u.show_scores ? "" : " (Score hidden.)"}`;
+            const inserted = await q(
+              `insert into alerts (user_id, match_id, kind, competition, home, away, comp_id, minute, home_score, away_score, signals) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb) on conflict do nothing returning match_id`,
+              [u.id, a.f.matchId, a.kind, a.f.competition, a.f.home, a.f.away, a.f.compId, a.f.minute, a.f.homeScore, a.f.awayScore, JSON.stringify(a.signals)],
+            );
+            if (!inserted.length) continue;
+            const msg = await send(Number(u.chat_id), text, alertKeyboard(a.f.matchId));
+            await q(`update alerts set message_id = $3 where user_id = $1 and match_id = $2`, [u.id, a.f.matchId, msg.message_id]);
+            rep.alerts++;
           }
         });
       }
@@ -111,8 +148,7 @@ async function notifyStored(chatId: number, messageId: number, blobId: string) {
   const job = await q<any>(`select p.* from picks p where p.ask_message_id = $1 limit 1`, [messageId]);
   if (job[0]) {
     const p = job[0];
-    await edit(chatId, messageId, `${askText(p).replace("\n\nDid you watch it?", "")}\n\nYou: <b>${p.rating}</b> · ✅ stored on Walrus · <a href="${walruscan(blobId)}">${short}</a>
-${reveal(p)}`);
+    await edit(chatId, messageId, `${resultText(p)}\n\nYou: <b>${p.rating}</b> · ✅ stored on Walrus · <a href="${walruscan(blobId)}">${short}</a>\n${reveal(p)}`);
   } else {
     await tg("sendMessage", {
       chat_id: chatId,
@@ -147,4 +183,8 @@ export async function composeLesson(userId: number, date: string): Promise<strin
 function labelFor(k: string) {
   if (k.startsWith("comp:")) return KNOWN_COMPS[k.slice(5)] ?? "one competition";
   return humanKey(k).toLowerCase();
+}
+
+function escHtml(s: string) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

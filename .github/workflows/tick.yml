@@ -1,10 +1,10 @@
 name: scheduler tick
 
 # Vercel Hobby crons run once a day, so the frequent heartbeat comes from here.
-# Every 30 minutes while the repo is private (Actions minutes); tighten to */10 once it is public.
+# Every 10 minutes: live alerts and kick-off reminders need it (about 1,000 Actions minutes over the hackathon week).
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch: {}
 
 jobs:

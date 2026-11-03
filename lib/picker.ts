@@ -58,6 +58,8 @@ function prior(f: Fixture): number {
   return 0.22;
 }
 
+export const PRIOR_OF = prior;
+
 const BIG_STAGE = /final|semi|quarter|round of 16|knockout|play-?off/i;
 
 export function compLabel(f: Fixture): string {
