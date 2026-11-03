@@ -4,6 +4,7 @@ import { tick } from "@/lib/tick.ts";
 import { processMemoryQueue } from "@/lib/memory.ts";
 import { env } from "@/lib/env.ts";
 import { safeEqual, sleep } from "@/lib/util.ts";
+import { scheduleNextBeat } from "@/lib/heartbeat.ts";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
       }
       // Push fresh memory writes out now, then confirm them ~30s later so the user sees "stored" quickly.
       await processMemoryQueue(4).catch(() => {});
+      await scheduleNextBeat().catch(() => {}); // keep the heartbeat alive (one beat per slot, duplicates dropped)
       await sleep(32_000);
       await tick().catch(() => {});
     })(),
