@@ -15,7 +15,7 @@ export function SiteFooter() {
           </div>
           <p className="mt-4 max-w-sm text-sm text-chalk-3">{BRAND.tagline}</p>
           <p className="mt-2 max-w-sm text-sm text-chalk-3">
-            Memories are encrypted with Seal and stored on Walrus. Ownership is checkable on Sui mainnet, read through Tatum. Built for the Tatum × Walrus Total Recall hackathon.
+            Memories are encrypted with Seal and stored on Walrus. Ownership is checkable on Sui mainnet, read through Tatum. Built for the Total Recall hackathon run by Tatum and Walrus.
           </p>
         </div>
         <nav aria-label="Footer" className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-3 md:col-span-7">

@@ -12,6 +12,9 @@ import { Features } from "@/components/landing/Features";
 import { TonightBoard } from "@/components/landing/Tonight";
 import { Ownership } from "@/components/landing/Ownership";
 import { Faq } from "@/components/landing/Faq";
+import { BuiltWith } from "@/components/landing/BuiltWith";
+import { TatumCheck } from "@/components/landing/TatumCheck";
+import { MemoryJourney } from "@/components/landing/MemoryJourney";
 import { GooeyWords } from "@/components/fx/GooeyWords";
 import { ScrollReveal, SmoothScroll } from "@/components/fx/Motion";
 
@@ -73,6 +76,8 @@ export default function Home() {
         </div>
       </section>
 
+      <BuiltWith />
+
       {/* ------------------------------------------------------------ how it works */}
       <Section id="how" index="01" label="How it works" title="Three steps. Then it does the scrolling." wide>
         <HowItWorks sample={SAMPLE_CARD} tz={SAMPLE_TZ} />
@@ -119,13 +124,29 @@ export default function Home() {
         </div>
       </Section>
 
+      {/* ------------------------------------------------------------ checked on Sui, through Tatum */}
+      <Section
+        id="verified"
+        index="05"
+        label="Checked on Sui"
+        title="Every claim here is checked on Sui, through Tatum."
+        lede="So you don’t have to trust us. Each check reads Sui mainnet live through Tatum’s gateway and compares it with what your pundit says it saved."
+        aside={<TatumMark />}
+        wide
+      >
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,6fr)_minmax(0,6fr)] lg:items-start">
+          <MemoryJourney />
+          <TatumCheck />
+        </div>
+      </Section>
+
       {/* ------------------------------------------------------------ ownership */}
-      <Section id="yours" index="05" label="Your data" title="Your taste memory is yours." lede="What your pundit learns is encrypted and kept on Walrus. Anyone can check it on Sui, and you never need a wallet.">
+      <Section id="yours" index="06" label="Your data" title="Your taste memory is yours." lede="What your pundit learns is encrypted and kept on Walrus. Anyone can check it on Sui, and you never need a wallet.">
         <Ownership />
       </Section>
 
       {/* ------------------------------------------------------------ FAQ */}
-      <Section id="faq" index="06" label="FAQ" title="Questions, answered.">
+      <Section id="faq" index="07" label="FAQ" title="Questions, answered.">
         <Faq />
       </Section>
 
@@ -149,6 +170,19 @@ export default function Home() {
       </section>
       <ScrollReveal />
     </StatsProvider>
+  );
+}
+
+/** "Sui reads powered by Tatum": their logo, linked, with clear space. Factual wording only. */
+function TatumMark() {
+  return (
+    <p className="flex items-center gap-3 text-sm text-chalk-3">
+      Sui reads powered by
+      <a href="https://tatum.io" target="_blank" rel="noopener" className="inline-flex rounded-md p-1.5" aria-label="Tatum (opens tatum.io)">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brands/tatum-on-dark.svg" alt="Tatum" width={97} height={24} className="block h-6 w-auto" />
+      </a>
+    </p>
   );
 }
 

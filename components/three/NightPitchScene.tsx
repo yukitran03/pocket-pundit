@@ -4,7 +4,7 @@
 // Every few seconds a handful of memories are recalled: they turn flare and draw a line to tonight's pick.
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
@@ -27,9 +27,13 @@ export interface NightPitchProps {
   reducedMotion: boolean;
   active: boolean;
   onReady?: () => void;
+  /** 0 at the top of the page, 1 once the hero has scrolled away. Tilts the camera and lifts tonight's three. */
+  scroll?: MutableRefObject<number>;
 }
 
-export default function NightPitchScene({ memoryCount, reducedMotion, active, onReady }: NightPitchProps) {
+export default function NightPitchScene({ memoryCount, reducedMotion, active, onReady, scroll }: NightPitchProps) {
+  const fallback = useRef(0);
+  const s = scroll ?? fallback;
   return (
     <Canvas
       dpr={[1, 1.75]}
@@ -43,19 +47,24 @@ export default function NightPitchScene({ memoryCount, reducedMotion, active, on
       aria-hidden
       tabIndex={-1}
     >
-      <CameraRig reducedMotion={reducedMotion} />
+      <CameraRig reducedMotion={reducedMotion} scroll={s} />
       <Ground />
       <Markings />
       <Floodlights />
       <Memories count={memoryCount} reducedMotion={reducedMotion} />
+      {reducedMotion ? null : <RisingPicks scroll={s} />}
     </Canvas>
   );
 }
 
-function CameraRig({ reducedMotion }: { reducedMotion: boolean }) {
+const SCROLL_TILT = THREE.MathUtils.degToRad(16);
+
+function CameraRig({ reducedMotion, scroll }: { reducedMotion: boolean; scroll: MutableRefObject<number> }) {
   const { camera, size, invalidate } = useThree();
   const target = useMemo(() => new THREE.Vector3(0, 0.35, -0.4), []);
   const base = useRef(new THREE.Vector3());
+  const fit = useRef({ d: 20, elev: THREE.MathUtils.degToRad(37) });
+  const smooth = useRef(0);
 
   useEffect(() => {
     // Fit the 16-unit pitch (plus floodlights) to the box width at any aspect.
@@ -65,6 +74,7 @@ function CameraRig({ reducedMotion }: { reducedMotion: boolean }) {
     const wanted = aspect < 1 ? 17.5 : 19.5;
     const d = THREE.MathUtils.clamp(wanted / (2 * halfV * aspect), 17, 44);
     const elev = THREE.MathUtils.degToRad(37);
+    fit.current = { d, elev };
     base.current.set(0, Math.sin(elev) * d, Math.cos(elev) * d);
     cam.position.copy(base.current);
     cam.lookAt(target);
@@ -72,8 +82,14 @@ function CameraRig({ reducedMotion }: { reducedMotion: boolean }) {
     invalidate();
   }, [camera, size.width, size.height, target, invalidate]);
 
-  useFrame((state) => {
+  useFrame((state, dt) => {
     if (reducedMotion) return;
+    // Scroll tilts the view toward overhead and dollies in a little, as tonight's three lift off.
+    smooth.current += (scroll.current - smooth.current) * Math.min(1, dt * 5);
+    const k = smooth.current;
+    const e = fit.current.elev + SCROLL_TILT * k;
+    const d = fit.current.d * (1 - 0.14 * k);
+    base.current.set(0, Math.sin(e) * d, Math.cos(e) * d);
     const t = state.clock.elapsedTime;
     const px = state.pointer.x * 0.55 + Math.sin(t * 0.07) * 0.7;
     const py = state.pointer.y * 0.3;
@@ -349,6 +365,64 @@ function Memories({ count, reducedMotion }: { count: number; reducedMotion: bool
         <ringGeometry args={[0.3, 0.34, 48]} />
         <meshBasicMaterial color="#f0531c" transparent opacity={0} depthWrite={false} toneMapped={false} />
       </mesh>
+    </group>
+  );
+}
+
+/**
+ * Tonight's three: chalk cards lying on the grass at the top of the page. As the visitor scrolls, they
+ * lift off the pitch one after another, turn to face the camera and come toward it.
+ */
+const RISE = [
+  { from: new THREE.Vector3(-3.1, 0.03, 2.1), to: new THREE.Vector3(-2.15, 3.2, 4.6) },
+  { from: new THREE.Vector3(0, 0.03, 3.0), to: new THREE.Vector3(0, 3.75, 5.4) },
+  { from: new THREE.Vector3(3.1, 0.03, 2.1), to: new THREE.Vector3(2.15, 3.2, 4.6) },
+];
+
+function RisingPicks({ scroll }: { scroll: MutableRefObject<number> }) {
+  const groups = useRef<(THREE.Group | null)[]>([]);
+  const faces = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
+  const smooth = useRef(0);
+  const tmp = useMemo(() => ({ flat: new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)), q: new THREE.Quaternion() }), []);
+
+  useFrame((state, dt) => {
+    smooth.current += (scroll.current - smooth.current) * Math.min(1, dt * 5);
+    const s = smooth.current;
+    RISE.forEach((r, i) => {
+      const g = groups.current[i];
+      if (!g) return;
+      const k0 = THREE.MathUtils.clamp(s * 1.7 - i * 0.18, 0, 1);
+      const k = k0 * k0 * (3 - 2 * k0);
+      g.position.lerpVectors(r.from, r.to, k);
+      g.position.y += Math.sin(state.clock.elapsedTime * 1.3 + i) * 0.05 * k;
+      tmp.q.copy(tmp.flat).slerp(state.camera.quaternion, k);
+      g.quaternion.copy(tmp.q);
+      g.scale.setScalar(1 + k * 0.35);
+      const face = faces.current[i];
+      if (face) face.opacity = 0.32 + 0.68 * k;
+    });
+  });
+
+  return (
+    <group>
+      {RISE.map((r, i) => (
+        <group key={i} ref={(g) => { groups.current[i] = g; }} position={r.from}>
+          <mesh>
+            <planeGeometry args={[0.98, 0.62]} />
+            <meshBasicMaterial color="#f0531c" transparent opacity={0.85} side={THREE.DoubleSide} toneMapped={false} />
+          </mesh>
+          <mesh position-z={0.003}>
+            <planeGeometry args={[0.9, 0.54]} />
+            <meshBasicMaterial ref={(m) => { faces.current[i] = m; }} color="#eef3ec" transparent opacity={0.32} side={THREE.DoubleSide} toneMapped={false} />
+          </mesh>
+          {[0.11, -0.02, -0.13].map((y, j) => (
+            <mesh key={j} position={[-0.1 + (j === 0 ? 0.04 : 0), y, 0.006]}>
+              <planeGeometry args={[j === 0 ? 0.52 : 0.42 - j * 0.07, 0.045]} />
+              <meshBasicMaterial color={j === 0 ? "#0c1a14" : "#83958a"} side={THREE.DoubleSide} toneMapped={false} />
+            </mesh>
+          ))}
+        </group>
+      ))}
     </group>
   );
 }

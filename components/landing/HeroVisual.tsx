@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PitchFallback } from "@/components/three/PitchFallback";
 import { SceneBoundary } from "@/components/three/SceneBoundary";
 import { useIdle, useInView, useReducedMotion, useWebGL } from "@/components/three/hooks";
@@ -20,6 +20,19 @@ export function HeroVisual() {
   const inView = useInView(box);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  // 0 while the visual sits in place, 1 once it has scrolled past the header: drives the camera tilt and the rising picks.
+  const scroll = useRef(0);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || reduced) return;
+    const onScroll = () => {
+      const r = el.getBoundingClientRect();
+      scroll.current = Math.min(1, Math.max(0, (80 - r.top) / Math.max(1, r.height * 0.85)));
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [reduced]);
 
   const stored = stats.status === "ok" ? stats.data.memoriesStored : null;
   const count = stored === null ? 28 : Math.max(18, Math.min(64, stored));
@@ -38,7 +51,7 @@ export function HeroVisual() {
         {show3d ? (
           <div className={`absolute inset-0 transition-opacity duration-1000 ${ready ? "opacity-100" : "opacity-0"}`}>
             <SceneBoundary onError={() => setFailed(true)}>
-              <NightPitchScene memoryCount={count} reducedMotion={reduced} active={inView} onReady={() => setReady(true)} />
+              <NightPitchScene memoryCount={count} reducedMotion={reduced} active={inView} scroll={scroll} onReady={() => setReady(true)} />
             </SceneBoundary>
           </div>
         ) : null}

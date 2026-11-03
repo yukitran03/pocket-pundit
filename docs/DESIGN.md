@@ -105,7 +105,8 @@ Numbers in tables, axes, kickoffs and IDs use `font-variant-numeric: tabular-num
 
 - **Site:** `Header` (sticky, blurred ink), `Footer`, `Logo` (a centre-circle mark with a recall node), `SectionHead` (rail index + title + lede), `ExternalLink`, `DataSourceBadge` (states that data is Demo, Sample fallback or Live).
 - **Pick:** `PickCard` reads top to bottom: teams (display face, two lines, no score placeholder before kick-off), kick-off time with a relative hint ("in 2 h", "Live now", "Full time"), competition, one `Meter` for worth-watching (flare for memory picks, steel for control, chalk while blind), up to three reasons, a single "Shaped by N memories on Walrus" disclosure (one-line quotes with a blob chip each), then a quiet status row: sample label, arm badge and `LockChip` ("Locked on Walrus 2 h before kick-off", linking to the brief blob when `Pick.lock.blobId` is set). Blind mode: on unrated picks the memories stay folded and opening them warns that it unblinds the pick. Finished picks add the rating and a compact drama line.
-- **Landing:** `HowItWorks` (3 steps + sample card), `Features` (six time-savers with their commands), `TonightBoard` (live `/api/tonight`: ranked list + spoiler-free replays + CTA), `LiveNumbers` / `ABFromStats` / `LessonsFeed`, `Ownership`, `Faq`.
+- **Landing:** `HowItWorks` (3 steps + sample card), `Features` (six time-savers with their commands), `TonightBoard` (live `/api/tonight`: ranked list + spoiler-free replays + CTA), `LiveNumbers` / `ABFromStats` / `LessonsFeed`, `Ownership`, `Faq`, `BuiltWith` (slim strip under the hero), `TatumCheck` (live four-call panel from `/api/proof`, fetched only when the section nears the viewport; each row is marked answered when its call is in `chain.via`), `MemoryJourney` (3D scene + SVG poster).
+- **Tatum logo:** only `public/brands/tatum-on-dark.svg` (their file, wordmark recoloured to chalk, mark untouched), shown at 24px tall with clear space, linked to tatum.io with `rel="noopener"`. Wording is factual: "Built with", "Sui reads powered by Tatum". Never "partner", "official" or "×". Walrus and Sui appear as plain text marks; we have no logo files for them and don't make any.
 - **Charts** (SVG, server-renderable, with hover titles and a text table):
   - `ArmCompare`: mean rating dot with a 95% CI whisker on a 0–2 axis, plus grouped bars of the rating mix. It adds an honest-n note.
   - `DivergingBars`: taste weights from −1 to 1, with the value at the tip and the evidence count.
@@ -124,6 +125,15 @@ Numbers in tables, axes, kickoffs and IDs use `font-variant-numeric: tabular-num
 - **Recall loop:** every 4.5s, 3–4 memories brighten to flare and quadratic Bézier lines draw (drawRange animation) from each one to *tonight's pick*: a beacon ring at the centre spot that pulses once. The cycle then fades out and repeats with different memories.
 - **Reduced motion:** a single static frame (`frameloop="demand"`) with one recall drawn and nothing moving.
 - **Pausing:** an IntersectionObserver sets `frameloop="never"` while the canvas is off-screen.
+
+- **Scroll:** while the hero scrolls away (0 to 1), the camera tilts 16° toward overhead and dollies in 14%, and tonight's three, chalk cards lying on the grass, lift off one after another, turn to face the camera and come toward it. Off under reduced motion.
+
+### Landing: "Memory journey" (`components/three/MemoryJourneyScene.tsx`)
+
+- **Story:** a rating tile lifts off a small pitch, shrinks into a sealed blob (dark cube, flare edges), drops onto a six-slab Walrus stack (which glows on landing), then a reading beam runs from the stack to a Sui checkpoint ring that turns green: "read via Tatum".
+- **Drive:** scroll position through the section while the visitor scrolls; a slow 10 s loop when they stop.
+- **Labels:** three DOM labels owned by the wrapper, projected onto world anchors each frame (no drei Html, which can throw on unmount under React 19). Hidden on boxes under 520px, where the caption below carries the same words.
+- **Fallbacks:** an SVG poster of the same story is the first paint, the reduced-motion view and the no-WebGL view. Lazy-loaded after idle, DPR capped at 2, frameloop "never" off-screen or when the tab is hidden. About 30 draw calls, basic materials, no shadows.
 
 ### /me: "Taste room"
 
