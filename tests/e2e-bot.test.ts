@@ -209,7 +209,7 @@ describe("a viewer's first evening, end to end", () => {
       const m = world.mark();
       await L.telegram.handleUpdate(cb(`r:${p.id}:${codeFor(p)}`, p.ask_message_id));
       const editText = world.since(m, "editMessageText").map((c) => c.body.text).join("\n");
-      expect(editText).toMatch(/🔓 That was (a|the) <b>memory/);
+      expect(editText).toMatch(/🔓 <b>Memory(-off)? pick<\/b>/);
       if (p.comp_id !== LIGA.compId) expect(editText).toMatch(/3–2/);
       if (i === picks.length - 1) expect(editText).toMatch(/seal ✓ <code>[0-9a-f]{16}<\/code>/);
       expect(editText).toMatch(/🔒 Locked on Walrus \d+ (h|min) before kick-off/);
@@ -467,5 +467,17 @@ describe("own your memory", () => {
     await L.telegram.handleUpdate(msg("/teach I like derbies"));
     const last = await L.db.one(`select account_id from memory_jobs where user_id = $1 order by id desc limit 1`, [U.id]);
     expect(last.account_id).toBeNull();
+  });
+});
+
+describe("bot messages stay short", () => {
+  it("every message keeps the visible part short and puts detail in a collapsed quote", () => {
+    for (const c of world.tg) {
+      const t = String(c.body.text ?? "");
+      if (!t || c.method === "answerCallbackQuery") continue;
+      const visible = t.replace(/<blockquote expandable>[\s\S]*?<\/blockquote>/g, "").replace(/<[^>]+>/g, "");
+      expect(visible.length, t.slice(0, 80)).toBeLessThan(700);
+      expect(t).not.toMatch(/—/);
+    }
   });
 });

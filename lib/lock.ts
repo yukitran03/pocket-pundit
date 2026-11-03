@@ -56,9 +56,9 @@ export async function lockLine(p: { user_id: number | string; brief_date: string
   const control = await one<any>(`select match_id from picks where user_id = $1 and brief_date = $2 and arm = 'control'`, [uid, p.brief_date]);
   if (!open?.n && control) {
     const s = sealCheck(uid, p.brief_date, control.match_id);
-    parts.push(`seal ✓ <code>${s.commit}</code> = <code>${s.formula}</code>`);
+    parts.push(`Seal check: seal ✓ <code>${s.commit}</code> = <code>${s.formula}</code>`);
   }
-  return parts.join(" · ");
+  return parts.join("\n");
 }
 
 /** The reveal line once all of a day's picks have settled: salt + control match id, so the commit can be checked. */

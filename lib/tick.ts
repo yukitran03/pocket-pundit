@@ -186,7 +186,7 @@ async function notifyStored(chatId: number, messageId: number, blobId: string) {
   if (job[0]) {
     const p = job[0];
     const lock = await lockLine(p).catch(() => "");
-    await edit(chatId, messageId, `${resultText(p)}\n\nYou: <b>${p.rating}</b> · ✅ stored on Walrus · <a href="${walruscan(blobId)}">${short}</a>\n${reveal(p)}${lock ? `\n${lock}` : ""}`);
+    await edit(chatId, messageId, `${resultText(p)}\n\nYou: <b>${p.rating}</b> · ✅ stored on Walrus · <a href="${walruscan(blobId)}">${short}</a>\n${reveal(p)}${lock ? `\n<blockquote expandable>${lock}</blockquote>` : ""}`);
   } else {
     await tg("sendMessage", {
       chat_id: chatId,

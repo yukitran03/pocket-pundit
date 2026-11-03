@@ -104,9 +104,7 @@ async function startUser(from: any, chatId: number, payload?: string) {
   await q(`update users set onboard_step = 'tz' where id = $1`, [from.id]);
   await send(
     chatId,
-    `<b>Hi ${esc(name)}, I'm ${BRAND.name}.</b>\n\nEvery evening I go through the day's fixtures (often 400+) and send you the three most worth your time, inside the hours you can actually watch. No spoilers, a reminder before kick-off, and a ping if a game turns into a thriller.\n\nAfter full time, one tap tells me how it was. I check what really happened in the match and keep what I learn in <b>your own memory</b>, encrypted on Walrus and verifiable on Sui. No wallet needed.\n\n${inv ? `${esc(String(inv.name).split(" ")[0])} invited you to watch together. After setup you'll both get one shared pick a night.
-
-` : ""}Four quick questions, then tonight's picks. First, where are you?`,
+    `<b>Hi ${esc(name)}, I'm ${BRAND.name}.</b>\nEvery evening: the 3 matches worth your time, at hours you can watch. No spoilers.\n\n⚽ Picks at the hour you choose\n⏰ A reminder before kick-off\n🔥 A ping when a game turns\n🧠 One tap after full time teaches me your taste\n\n${inv ? `👥 ${esc(String(inv.name).split(" ")[0])} invited you to watch together. After setup you'll both get one shared pick a night.\n\n` : ""}<blockquote expandable>What I learn is kept in your own memory, encrypted on Walrus and checkable on Sui mainnet. No wallet needed.</blockquote>\nFour quick taps. First, where are you?`,
     TZ_OPTIONS.map(([label, tz]) => [{ text: label, callback_data: `tz:${tz}` }]),
   );
 }
@@ -128,24 +126,27 @@ async function leaguesKeyboard(userId: number): Promise<Kb> {
 }
 
 export function briefText(user: UserRow, b: BriefResult, dayIndex: number, missed?: { home: string; away: string; competition: string; drama: number } | null, duo?: DuoPick | null): string {
-  const lines = [`<b>Tonight's picks · day ${dayIndex}</b>`, `I scanned ${b.considered} fixtures in your window (${hh(user.window_start)} to ${hh(user.window_end)}).`, ""];
+  // Scannable first (what, when, why in one line each); the how-it-works detail sits in a collapsed quote.
+  const lines = [`<b>⚽ Tonight's picks</b> · day ${dayIndex}`, `${b.considered} fixtures checked for ${hh(user.window_start)} to ${hh(user.window_end)}`, ""];
   for (const p of [...b.picks].sort((a, c) => a.slot - c.slot)) {
-    lines.push(`<b>${p.slot}. ${esc(p.c.f.home)} v ${esc(p.c.f.away)}</b>`);
-    lines.push(`${esc(p.c.label)} · ${p.c.localKick} · <b>${p.score}</b>/100`);
-    for (const r of p.neutral) lines.push(`• ${esc(r)}`);
+    lines.push(`<b>${p.slot} · ${esc(p.c.localKick)}  ${esc(p.c.f.home)} v ${esc(p.c.f.away)}</b>`);
+    lines.push(`${esc(p.c.label)} · ${p.score}/100${p.neutral[0] ? `\n<i>${esc(p.neutral[0])}</i>` : ""}`);
     lines.push("");
   }
-  if (!b.picks.length) lines.push("Nothing kicks off in your window tonight. I'll look again tomorrow.");
-  if (b.picks.length) lines.push("🔒 Locked on Walrus before kick-off. Which pick ran with memory off stays sealed until the last full time.", "");
-  if (duo) lines.push(`👥 Watch together with ${esc(duo.partnerName)}: <b>${esc(duo.home)} v ${esc(duo.away)}</b> · ${duo.mineLocal} your time (${duo.theirsLocal} theirs). Picked for both of your tastes.`, "");
-  if (missed) lines.push(`📼 Worth the highlights from last night: <b>${esc(missed.home)} v ${esc(missed.away)}</b> (${esc(missed.competition)}), drama ${missed.drama}/100. No score here.`, "");
-  lines.push(
-    b.memoriesUsed
-      ? `🧠 Shaped by ${b.memoriesUsed} memories recalled from Walrus (${(b.recallMs / 1000).toFixed(1)}s). One of these three was picked with memory off. Your ratings tell me which approach works.`
-      : b.recallOk
-        ? "🧠 Day one: no memories yet, so these are a neutral fan's picks. Rate them after full time and I'll start learning."
-        : "⚠️ I couldn't reach your memory tonight, so these picks ran without it.",
-  );
+  if (!b.picks.length) lines.push("Nothing kicks off in your window tonight. I'll look again tomorrow.", "");
+  if (duo) lines.push(`👥 Watch together with ${esc(duo.partnerName)}: <b>${esc(duo.home)} v ${esc(duo.away)}</b> · ${esc(duo.mineLocal)} (${esc(duo.theirsLocal)} for them)`);
+  if (missed) lines.push(`📼 Last night's best, for the highlights: <b>${esc(missed.home)} v ${esc(missed.away)}</b> · drama ${missed.drama}`);
+  if (duo || missed) lines.push("");
+  const memory = b.memoriesUsed
+    ? `🧠 Shaped by ${b.memoriesUsed} memories recalled from Walrus in ${(b.recallMs / 1000).toFixed(1)}s.`
+    : b.recallOk
+      ? "🧠 Day one: no memories yet, so these are a neutral fan's picks. Rate them after full time and I start learning."
+      : "⚠️ I couldn't reach your memory tonight, so these ran without it.";
+  const detail = [
+    memory,
+    b.picks.length ? "🔒 Locked on Walrus before kick-off. One pick ran with memory off; which one stays sealed until the last full time, then I'll show you." : "",
+  ].filter(Boolean);
+  lines.push(`<blockquote expandable>${detail.join("\n")}</blockquote>`);
   return lines.join("\n");
 }
 
@@ -155,7 +156,7 @@ export async function sendBrief(user: UserRow, now = new Date()) {
   const missed = await missedLastNight(user, now).catch(() => null);
   const duo = await duoPick(user as any, now).catch(() => null);
   const days = Math.max(1, Math.floor((now.getTime() - new Date(user.created_at).getTime()) / 86_400_000) + 1);
-  await send(user.chat_id, briefText(user, b, days, missed, duo),[[{ text: "Why these? Open your memory", url: dashboardUrl(user.id) }]]);
+  await send(user.chat_id, briefText(user, b, days, missed, duo), [[{ text: "Why these picks?", url: dashboardUrl(user.id) }]]);
   await q(`update users set last_brief_date = $2 where id = $1`, [user.id, b.briefDate]);
   return b;
 }
@@ -176,17 +177,17 @@ export function ratingKeyboard(pickId: string): Kb {
 /** Full-time result with the drama breakdown (shown after the user has answered, or always if they opted in). */
 export function resultText(p: any): string {
   const d: Drama | null = p.drama;
-  if (!hasScore(p)) return `<b>FT · ${esc(p.home)} v ${esc(p.away)}</b>\n${esc(p.competition)}\nThe data feed has no final score for this one, so your answer is what I learn from.`;
-  return `<b>FT · ${esc(p.home)} ${p.home_score}–${p.away_score} ${esc(p.away)}</b>\n${esc(p.competition)}${d ? `\nDrama ${d.score}/100: ${esc(dramaSummary(d))}.` : ""}`;
+  if (!hasScore(p)) return `<b>FT · ${esc(p.home)} v ${esc(p.away)}</b>\n${esc(p.competition)} · no final score in the feed`;
+  return `<b>FT · ${esc(p.home)} ${p.home_score}–${p.away_score} ${esc(p.away)}</b>\n${esc(p.competition)}${d ? `\nDrama ${d.score}/100 · ${esc(dramaSummary(d))}` : ""}`;
 }
 
 const hasScore = (p: any) => p.home_score !== null && p.home_score !== undefined && p.away_score !== null && p.away_score !== undefined;
 
 /** The post-match question. Spoiler-free by default: no score until you answer. */
 export function askText(p: any, showScores = false): string {
-  if (!hasScore(p)) return `<b>Full time · ${esc(p.home)} v ${esc(p.away)}</b>\n${esc(p.competition)}\n\nDid you watch it? The data feed has no result for this competition, so your tap is the whole signal tonight.`;
-  if (showScores) return `${resultText(p)}\n\nDid you watch it?`;
-  return `<b>Full time · ${esc(p.home)} v ${esc(p.away)}</b>\n${esc(p.competition)}\n\nDid you watch it? (No spoilers: I'll show the score once you answer.)`;
+  if (!hasScore(p)) return `<b>Full time · ${esc(p.home)} v ${esc(p.away)}</b>\nHow was it? The feed has no result for this competition, so your tap is all I learn from.`;
+  if (showScores) return `${resultText(p)}\n\nHow was it?`;
+  return `<b>Full time · ${esc(p.home)} v ${esc(p.away)}</b>\nHow was it? Score after you answer, no spoilers.`;
 }
 
 export function alertKeyboard(matchId: string): Kb {
@@ -238,17 +239,17 @@ async function handleRating(cb: any, pickId: string, code: string) {
   await tg("answerCallbackQuery", { callback_query_id: cb.id, text: "Saved. Writing it to your Walrus memory…" });
   if (msgId) {
     const lock = await lockLine({ ...p, rating }).catch(() => "");
-    await edit(cb.message.chat.id, msgId, `${resultText(p)}\n\nYou: <b>${RATING_WORD[rating]}</b> · ⏳ writing to Walrus…\n${reveal(p)}${lock ? `\n${lock}` : ""}`);
+    await edit(cb.message.chat.id, msgId, `${resultText(p)}\n\nYou: <b>${RATING_WORD[rating]}</b> · ⏳ saving to Walrus…\n${reveal(p)}${lock ? `\n<blockquote expandable>${lock}</blockquote>` : ""}`);
   }
 }
 
 /** After a rating, unblind the pick: was it chosen with memory, and which memories? */
 export function reveal(p: any): string {
   const f = p.features ?? {};
-  if (p.arm === "control") return "🔓 That was the <b>memory-off</b> pick (the control in your A/B).";
+  if (p.arm === "control") return "🔓 <b>Memory-off pick</b>: the control in your A/B test.";
   const why: string[] = f.memoryReasons ?? [];
   const n = (p.cites ?? []).length;
-  return `🔓 That was a <b>memory</b> pick${why.length ? `: ${esc(why[0])}` : " (no memories yet, so it ranked like a neutral fan)"}${n ? ` · cited ${n} memor${n === 1 ? "y" : "ies"}` : ""}.`;
+  return `🔓 <b>Memory pick</b>${why.length ? `: ${esc(why[0])}` : ": no memories yet, so it ranked like a neutral fan"}${n ? ` (${n} memor${n === 1 ? "y" : "ies"} cited)` : ""}`;
 }
 
 async function teach(user: UserRow, text: string) {
@@ -278,16 +279,16 @@ async function ask(user: UserRow, question: string) {
   if (qText.length < 3) return send(user.chat_id, "Ask me anything about your taste, e.g. <i>/ask which leagues do I enjoy?</i> or <i>/ask what did I think of late kick-offs?</i>");
   await tg("sendChatAction", { chat_id: user.chat_id, action: "typing" }).catch(() => {});
   const a = await askMemory(user, qText);
-  const lines = [`<b>From your memory on Walrus</b> · ${a.hits.length} relevant, ${(a.latencyMs / 1000).toFixed(1)}s`];
-  if (a.pulls.length || a.pushes.length) {
-    lines.push("");
-    if (a.pulls.length) lines.push(`Pulls you in: ${a.pulls.map((p) => `<b>${esc(p.label)}</b> (${p.n})`).join(", ")}`);
-    if (a.pushes.length) lines.push(`Not for you: ${a.pushes.map((p) => `<b>${esc(p.label)}</b> (${p.n})`).join(", ")}`);
-  }
-  if (!a.hits.length) lines.push("", "Nothing in your memory about that yet. Rate a few matches or /teach me something.");
-  for (const h of a.hits) {
-    const body = h.text.split(" tags: ")[0].replace(/^\[(\w+)\]\s*/, (_, k) => `${k}: `);
-    lines.push("", `• ${esc(body.length > 220 ? `${body.slice(0, 217)}…` : body)} <a href="https://walruscan.com/mainnet/blob/${h.blobId}">blob</a>`);
+  const lines = [`🧠 <b>From your memory on Walrus</b>`];
+  if (a.pulls.length) lines.push(`👍 ${a.pulls.map((p) => `<b>${esc(p.label)}</b>`).join(", ")}`);
+  if (a.pushes.length) lines.push(`👎 ${a.pushes.map((p) => `<b>${esc(p.label)}</b>`).join(", ")}`);
+  if (!a.hits.length) lines.push("Nothing in your memory about that yet. Rate a few matches or tell me what you like.");
+  else {
+    const items = a.hits.map((h) => {
+      const body = h.text.split(" tags: ")[0].replace(/^\[\w+\]\s*/, "").replace(/^\d{4}-\d{2}-\d{2} · /, "");
+      return `• ${esc(body.length > 140 ? `${body.slice(0, 137)}…` : body)} <a href="https://walruscan.com/mainnet/blob/${h.blobId}">↗</a>`;
+    });
+    lines.push(`\n${a.hits.length} matching memories, found in ${(a.latencyMs / 1000).toFixed(1)}s:`, `<blockquote expandable>${items.join("\n")}</blockquote>`);
   }
   return send(user.chat_id, lines.join("\n"));
 }
@@ -306,7 +307,7 @@ async function sendCalendar(user: UserRow) {
   const https = `${env.appUrl()}/api/cal/${purposeKey("cal", user.id)}.ics`;
   return send(
     user.chat_id,
-    `<b>Your picks in your calendar</b>\nSubscribe once. Every evening's picks then appear on their own, each with a reminder 20 minutes before kick-off.\n\n<code>${https}</code>\n\n<b>Google Calendar</b> (web): Other calendars → + → From URL → paste.\n<b>iPhone</b>: Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar → paste.\n<b>Mac</b>: Calendar → File → New Calendar Subscription → paste.\n\nKeep this link to yourself: it shows your picks.`,
+    `🗓 <b>Your picks in your calendar</b>\nSubscribe once; every evening's picks appear on their own, with a reminder 20 min before kick-off.\n\nTap to copy:\n<code>${https}</code>\n<blockquote expandable><b>Google Calendar</b> (web): Other calendars → + → From URL → paste\n<b>iPhone</b>: Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar → paste\n<b>Mac</b>: Calendar → File → New Calendar Subscription → paste\nKeep this link private: it shows your picks.</blockquote>`,
   );
 }
 
@@ -341,10 +342,32 @@ async function duoCommand(u: any, arg: string) {
   );
 }
 
+/** Tonight's picks: send the brief if there isn't one yet, otherwise a compact list with how each went. */
+async function picksCommand(u: any) {
+  const date = localParts(new Date(), u.tz).date;
+  const rows = await q<any>(`select * from picks where user_id = $1 and brief_date = $2 order by slot`, [u.id, date]);
+  if (!rows.length) {
+    if (u.onboard_step !== "done") return send(u.chat_id, "Finish the setup questions above first.");
+    return sendBrief(u);
+  }
+  const RATED: Record<string, string> = { loved: "😍 loved", fine: "🙂 fine", bailed: "😴 bailed", skipped: "🙈 didn't watch" };
+  const lines = ["<b>⚽ Tonight's picks</b>", ""];
+  for (const p of rows) {
+    lines.push(`<b>${p.slot} · ${esc(fmtLocalTime(new Date(p.kickoff).toISOString(), u.tz))}  ${esc(p.home)} v ${esc(p.away)}</b>`);
+    lines.push(`${esc(p.competition)} · ${Math.round(p.score)}/100${p.rating ? ` · you: ${RATED[p.rating] ?? p.rating}` : ""}`);
+    lines.push("");
+  }
+  return send(u.chat_id, lines.join("\n").trim(), [[{ text: "Why these picks?", url: dashboardUrl(u.id) }]]);
+}
+
 async function sendHelp(chatId: number, returning = false) {
   await send(
     chatId,
-    `${returning ? "Welcome back. " : ""}<b>What I can do</b>\n/picks: tonight's three\n/ask &lt;question&gt;: ask your memory, e.g. <i>/ask which leagues do I enjoy?</i>\n/card: your football taste as a shareable image\n/calendar: add your picks to Google or Apple Calendar\n/duo: pair with a friend for one shared pick a night\n/export: download everything your pundit knows about you\n/own: keep your memory in your own Walrus Memory account (optional, needs a Sui wallet)\n/teach &lt;text&gt;: tell me a preference\n/me: your private dashboard\n/alerts on|off: "worth switching on" pings during matches\n/spoilers on|off: show scores in full-time messages\n/settings: time zone, brief time, watch window\n\nOr just type a preference, e.g. <i>I love late comebacks</i>.`,
+    `${returning ? "Welcome back. " : ""}<b>What I can do</b>\n⚽ /picks · tonight's three\n🧠 /ask · ask your memory\n🪪 /card · your taste as an image\n🗓 /calendar · picks in your calendar\n👥 /duo · a shared pick with a friend\n\nOr just type what you like, e.g. <i>I love late comebacks</i>.\n<blockquote expandable>/me · your dashboard\n/export · download your memory\n/own · keep it in your own wallet's account (optional)\n/alerts on|off · "worth switching on" pings\n/spoilers on|off · scores in full-time messages\n/settings · time zone, brief time, watch window\n/teach · save a preference</blockquote>`,
+    [
+      [{ text: "⚽ Tonight's picks", callback_data: "cmd:picks" }, { text: "🧠 Ask my memory", callback_data: "cmd:ask" }],
+      [{ text: "👥 Invite a friend", callback_data: "cmd:duo" }, { text: "⚙️ Settings", callback_data: "cmd:settings" }],
+    ],
   );
 }
 
@@ -384,15 +407,7 @@ export async function handleUpdate(update: any) {
       await q(`update users set tz = $2 where id = $1`, [u.id, rest[0]]);
       return send(u.chat_id, `Time zone set to ${esc(rest[0])}.`);
     }
-    if (command === "/picks") {
-      const date = localParts(new Date(), u.tz).date;
-      const rows = await q(`select * from picks where user_id = $1 and brief_date = $2 order by slot`, [u.id, date]);
-      if (!rows.length) {
-        if (u.onboard_step !== "done") return send(u.chat_id, "Finish the setup questions above first.");
-        return sendBrief(u);
-      }
-      return send(u.chat_id, rows.map((p) => `<b>${p.slot}. ${esc(p.home)} v ${esc(p.away)}</b>\n${esc(p.competition)} · ${fmtLocalTime(new Date(p.kickoff).toISOString(), u.tz)} · ${Math.round(p.score)}/100${p.rating ? ` · you: ${p.rating}` : ""}`).join("\n\n"), [[{ text: "Open dashboard", url: dashboardUrl(u.id) }]]);
-    }
+    if (command === "/picks") return picksCommand(u);
     if (command === "/ask") return ask(u, rest.join(" "));
     if (command === "/duo") return duoCommand(u as any, (rest[0] || "").toLowerCase());
     if (command === "/own") {
@@ -401,8 +416,8 @@ export async function handleUpdate(update: any) {
       return send(
         u.chat_id,
         own
-          ? `🔑 Your memory lives in your own Walrus Memory account: <code>${own}</code>. Remove Pocket Pundit's key from it at any time to cut me off, or open the page below to switch back.`
-          : "<b>Own your memory (optional)</b>\nMove your taste memory into a Walrus Memory account that your own Sui wallet controls. You sign once or twice in your wallet (a tiny network fee, about 0.01 SUI), I check it on Sui and copy everything across. You can remove my access whenever you like.\n\nNo wallet? Nothing changes: your memory stays encrypted on Walrus in Pocket Pundit's account.",
+          ? `🔑 Your memory lives in your own account:\n<code>${own}</code>\nRemove my key any time to cut me off.`
+          : "🔑 <b>Own your memory</b> (optional)\nMove it into a Walrus Memory account your own Sui wallet controls. One or two signatures, about 0.01 SUI in fees. Remove my access any time.\n<blockquote expandable>No wallet? Nothing changes. Your memory stays encrypted on Walrus in Pocket Pundit's account, and the bot works the same.</blockquote>",
         [[{ text: own ? "Manage ownership" : "Take ownership", url: ownUrl(token) }]],
       );
     }
@@ -425,6 +440,13 @@ export async function handleUpdate(update: any) {
     if (kind === "r") return handleRating(cb, a, b);
     if (kind === "al") return handleAlertResponse(cb, a, b);
     await tg("answerCallbackQuery", { callback_query_id: cb.id });
+    if (kind === "cmd") {
+      if (u.onboard_step !== "done") return send(chatId, "Let's finish setup first. Tap one of the buttons above, or /start to begin again.");
+      if (a === "picks") return picksCommand(u);
+      if (a === "ask") return send(chatId, "Ask me anything about your taste. Type it like this:\n<i>/ask which leagues do I enjoy?</i>");
+      if (a === "duo") return duoCommand(u as any, "");
+      if (a === "settings") return showSettings(u);
+    }
     if (kind === "set") {
       if (a === "tz") return send(chatId, "Where are you?", TZ_OPTIONS.map(([label, tz]) => [{ text: label, callback_data: `tz:${tz}` }]));
       if (a === "bh") return askBriefHour(chatId);
