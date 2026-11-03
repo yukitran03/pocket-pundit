@@ -48,9 +48,9 @@ const TZ_OPTIONS: [string, string][] = [
   ["US West", "America/Los_Angeles"],
 ];
 const WINDOWS: [string, number, number][] = [
-  ["19:00 – midnight", 19, 24],
-  ["19:00 – 02:00", 19, 26],
-  ["21:00 – 04:00 (night owl)", 21, 28],
+  ["19:00 to midnight", 19, 24],
+  ["19:00 to 02:00", 19, 26],
+  ["21:00 to 04:00 (night owl)", 21, 28],
   ["Any time in the next 24h", 12, 36],
 ];
 const LEAGUES: [string, string][] = [
@@ -83,7 +83,7 @@ async function startUser(from: any, chatId: number) {
   await q(`update users set onboard_step = 'tz' where id = $1`, [from.id]);
   await send(
     chatId,
-    `<b>Hi ${esc(name)} — I'm ${BRAND.name}.</b>\n\nEvery evening I go through the day's fixtures (often 400+) and send you the three most worth your time, inside the hours you can actually watch. No spoilers, a reminder before kick-off, and a ping if a game turns into a thriller.\n\nAfter full time, one tap tells me how it was. I check what really happened in the match and keep what I learn in <b>your own memory</b>: encrypted on Walrus, verifiable on Sui. No wallet needed.\n\nFour quick questions, then tonight's picks. First: where are you?`,
+    `<b>Hi ${esc(name)}, I'm ${BRAND.name}.</b>\n\nEvery evening I go through the day's fixtures (often 400+) and send you the three most worth your time, inside the hours you can actually watch. No spoilers, a reminder before kick-off, and a ping if a game turns into a thriller.\n\nAfter full time, one tap tells me how it was. I check what really happened in the match and keep what I learn in <b>your own memory</b>, encrypted on Walrus and verifiable on Sui. No wallet needed.\n\nFour quick questions, then tonight's picks. First, where are you?`,
     TZ_OPTIONS.map(([label, tz]) => [{ text: label, callback_data: `tz:${tz}` }]),
   );
 }
@@ -100,12 +100,12 @@ async function leaguesKeyboard(userId: number): Promise<Kb> {
   for (let i = 0; i < LEAGUES.length; i += 2) {
     rows.push(LEAGUES.slice(i, i + 2).map(([label, id]) => ({ text: `${sel.includes(id) ? "✅ " : ""}${label}`, callback_data: `lg:${id}` })));
   }
-  rows.push([{ text: sel.length ? `Done (${sel.length})` : "Skip — surprise me", callback_data: "lg:done" }]);
+  rows.push([{ text: sel.length ? `Done (${sel.length})` : "Skip, surprise me", callback_data: "lg:done" }]);
   return rows;
 }
 
 export function briefText(user: UserRow, b: BriefResult, dayIndex: number, missed?: { home: string; away: string; competition: string; drama: number } | null): string {
-  const lines = [`<b>Tonight's picks · day ${dayIndex}</b>`, `I scanned ${b.considered} fixtures in your window (${hh(user.window_start)}–${hh(user.window_end)}).`, ""];
+  const lines = [`<b>Tonight's picks · day ${dayIndex}</b>`, `I scanned ${b.considered} fixtures in your window (${hh(user.window_start)} to ${hh(user.window_end)}).`, ""];
   for (const p of [...b.picks].sort((a, c) => a.slot - c.slot)) {
     lines.push(`<b>${p.slot}. ${esc(p.c.f.home)} v ${esc(p.c.f.away)}</b>`);
     lines.push(`${esc(p.c.label)} · ${p.c.localKick} · <b>${p.score}</b>/100`);
@@ -117,7 +117,7 @@ export function briefText(user: UserRow, b: BriefResult, dayIndex: number, misse
   if (missed) lines.push(`📼 Worth the highlights from last night: <b>${esc(missed.home)} v ${esc(missed.away)}</b> (${esc(missed.competition)}), drama ${missed.drama}/100. No score here.`, "");
   lines.push(
     b.memoriesUsed
-      ? `🧠 Shaped by ${b.memoriesUsed} memories recalled from Walrus (${(b.recallMs / 1000).toFixed(1)}s). One of these three was picked with memory off — your ratings tell me which approach works.`
+      ? `🧠 Shaped by ${b.memoriesUsed} memories recalled from Walrus (${(b.recallMs / 1000).toFixed(1)}s). One of these three was picked with memory off. Your ratings tell me which approach works.`
       : b.recallOk
         ? "🧠 Day one: no memories yet, so these are a neutral fan's picks. Rate them after full time and I'll start learning."
         : "⚠️ I couldn't reach your memory tonight, so these picks ran without it.",
@@ -151,7 +151,7 @@ export function ratingKeyboard(pickId: string): Kb {
 /** Full-time result with the drama breakdown (shown after the user has answered, or always if they opted in). */
 export function resultText(p: any): string {
   const d: Drama | null = p.drama;
-  return `<b>FT · ${esc(p.home)} ${p.home_score ?? "?"}–${p.away_score ?? "?"} ${esc(p.away)}</b>\n${esc(p.competition)}${d ? `\nDrama ${d.score}/100 — ${esc(dramaSummary(d))}.` : ""}`;
+  return `<b>FT · ${esc(p.home)} ${p.home_score ?? "?"}–${p.away_score ?? "?"} ${esc(p.away)}</b>\n${esc(p.competition)}${d ? `\nDrama ${d.score}/100: ${esc(dramaSummary(d))}.` : ""}`;
 }
 
 /** The post-match question. Spoiler-free by default: no score until you answer. */
@@ -283,12 +283,12 @@ async function sendCalendar(user: UserRow) {
 async function sendHelp(chatId: number, returning = false) {
   await send(
     chatId,
-    `${returning ? "Welcome back. " : ""}<b>What I can do</b>\n/picks — tonight's three\n/ask &lt;question&gt; — ask your memory, e.g. <i>/ask which leagues do I enjoy?</i>\n/card — your football taste as a shareable image\n/calendar — add your picks to Google or Apple Calendar\n/teach &lt;text&gt; — tell me a preference\n/me — your private dashboard\n/alerts on|off — "worth switching on" pings during matches\n/spoilers on|off — show scores in full-time messages\n/settings — time zone, brief time, watch window\n\nOr just type a preference, e.g. <i>I love late comebacks</i>.`,
+    `${returning ? "Welcome back. " : ""}<b>What I can do</b>\n/picks: tonight's three\n/ask &lt;question&gt;: ask your memory, e.g. <i>/ask which leagues do I enjoy?</i>\n/card: your football taste as a shareable image\n/calendar: add your picks to Google or Apple Calendar\n/teach &lt;text&gt;: tell me a preference\n/me: your private dashboard\n/alerts on|off: "worth switching on" pings during matches\n/spoilers on|off: show scores in full-time messages\n/settings: time zone, brief time, watch window\n\nOr just type a preference, e.g. <i>I love late comebacks</i>.`,
   );
 }
 
 async function showSettings(u: UserRow) {
-  await send(u.chat_id, `<b>Settings</b>\nTime zone: ${esc(u.tz)}\nPicks arrive: ${hh(u.brief_hour)}\nWatch window: ${hh(u.window_start)}–${hh(u.window_end)}\nMemory namespace: <code>${u.namespace}</code>`, [
+  await send(u.chat_id, `<b>Settings</b>\nTime zone: ${esc(u.tz)}\nPicks arrive: ${hh(u.brief_hour)}\nWatch window: ${hh(u.window_start)} to ${hh(u.window_end)}\nMemory namespace: <code>${u.namespace}</code>`, [
     [{ text: "Change time zone", callback_data: "set:tz" }],
     [{ text: "Change brief time", callback_data: "set:bh" }],
     [{ text: "Change watch window", callback_data: "set:win" }],
@@ -337,7 +337,7 @@ export async function handleUpdate(update: any) {
     if (command === "/calendar") return sendCalendar(u);
     if (command === "/teach") return teach(u, rest.join(" "));
     if (!command && text && u.onboard_step === "done") return teach(u, text);
-    if (u.onboard_step !== "done") return send(u.chat_id, "Let's finish setup first — tap one of the buttons above, or /start to begin again.");
+    if (u.onboard_step !== "done") return send(u.chat_id, "Let's finish setup first. Tap one of the buttons above, or /start to begin again.");
     return sendHelp(u.chat_id);
   }
 
@@ -381,7 +381,7 @@ export async function handleUpdate(update: any) {
         await q(`update users set onboard_step = 'leagues' where id = $1`, [u.id]);
         return send(chatId, "Last one: which competitions do you follow? Tap any, then Done.", await leaguesKeyboard(u.id));
       }
-      return send(chatId, `Watch window set to ${hh(s)}–${hh(e)}.`);
+      return send(chatId, `Watch window set to ${hh(s)} to ${hh(e)}.`);
     }
     if (kind === "lg") {
       if (a !== "done") {
@@ -398,7 +398,7 @@ export async function handleUpdate(update: any) {
       }
       const fresh = (await getUser(u.id))!;
       await q(`update users set onboard_step = 'done' where id = $1`, [u.id]);
-      await edit(chatId, cb.message.message_id, sel.length ? `Saved ${sel.length} competition${sel.length === 1 ? "" : "s"} to your memory.` : "No problem — I'll learn from your ratings.");
+      await edit(chatId, cb.message.message_id, sel.length ? `Saved ${sel.length} competition${sel.length === 1 ? "" : "s"} to your memory.` : "No problem. I'll learn from your ratings.");
       if (fresh.onboard_step !== "done") {
         await send(chatId, `All set. Picks arrive at ${hh(fresh.brief_hour)} (${esc(fresh.tz)}). Here's tonight, from a standing start:`);
         return sendBrief(fresh);
