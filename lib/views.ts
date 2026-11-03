@@ -4,10 +4,14 @@ import { q, one, cached } from "./db.ts";
 import { env } from "./env.ts";
 import { buildTaste, parseMemory, tasteToContract } from "./taste.ts";
 import { localParts, walruscan, suiscanObject, suiscanAccount, blobIdToU256, slug } from "./util.ts";
-import { chainInfo, memwalAccount, ownedBlobs, type ChainBlob } from "./tatum.ts";
+import { chainInfo, memwalAccount, objectLastWrite, ownedBlobs, type ChainBlob } from "./tatum.ts";
 import { memwal } from "./memory.ts";
 
-function toPick(p: any, now = Date.now()): Pick {
+type Lock = { blobId: string | null; storedAt: string };
+
+function toPick(p: any, now = Date.now(), locks?: Map<string, Lock>): Pick {
+  const lk = locks?.get(p.brief_date);
+  const lockMins = lk ? Math.round((new Date(p.kickoff).getTime() - Date.parse(lk.storedAt)) / 60_000) : null;
   const k = new Date(p.kickoff).getTime();
   const settled = !!p.settled_at;
   const status = settled ? "finished" : k > now ? "upcoming" : "live";
@@ -29,7 +33,14 @@ function toPick(p: any, now = Date.now()): Pick {
     cites: p.cites ?? [],
     rating: p.rating,
     drama: p.drama,
+    lock: lk && lockMins !== null && lockMins > 0 ? { blobId: lk.blobId, lockedAt: lk.storedAt, minutesBeforeKickoff: lockMins } : null,
   };
+}
+
+/** Stored brief locks for a user, keyed by brief date (idem key mf:brief:<uid>:<date>). */
+async function briefLocks(userId: number): Promise<Map<string, Lock>> {
+  const rows = await q<any>(`select idem_key, blob_id, updated_at from memory_jobs where user_id = $1 and kind = 'brief' and status = 'stored'`, [userId]);
+  return new Map(rows.map((r) => [String(r.idem_key).split(":").pop()!, { blobId: r.blob_id, storedAt: new Date(r.updated_at).toISOString() }]));
 }
 
 function armStats(rows: any[]): ArmStats {
@@ -66,6 +77,7 @@ export async function meView(userId: number): Promise<MeResponse | null> {
   const picks = await q<any>(`select * from picks where user_id = $1 order by brief_date desc, slot asc limit 120`, [userId]);
   const jobs = await q<any>(`select * from memory_jobs where user_id = $1 order by id desc limit 400`, [userId]);
   const { blobs } = await chainBlobMap();
+  const locks = await briefLocks(userId);
   const memories: MemoryRow[] = jobs.map((j) => {
     const chain = j.blob_id ? blobs.get(blobIdToU256(j.blob_id)) : undefined;
     return {
@@ -93,8 +105,8 @@ export async function meView(userId: number): Promise<MeResponse | null> {
   const dayIndex = Math.max(1, Math.floor((Date.now() - new Date(u.created_at).getTime()) / 86_400_000) + 1);
   return {
     user: { name: u.name, tz: u.tz, briefHour: u.brief_hour, windowStart: u.window_start, windowEnd: u.window_end, namespace: u.namespace, joinedAt: new Date(u.created_at).toISOString(), dayIndex },
-    today: picks.filter((p) => p.brief_date === today).map((p) => toPick(p)),
-    history: picks.filter((p) => p.brief_date !== today).slice(0, 14 * 3).map((p) => toPick(p)),
+    today: picks.filter((p) => p.brief_date === today).map((p) => toPick(p, Date.now(), locks)),
+    history: picks.filter((p) => p.brief_date !== today).slice(0, 14 * 3).map((p) => toPick(p, Date.now(), locks)),
     taste: tasteToContract(taste, labels),
     memories,
     ab: { memory: armStats(picks.filter((p) => p.arm === "memory")), control: armStats(picks.filter((p) => p.arm === "control")) },
@@ -167,6 +179,30 @@ export async function proofView(): Promise<ProofResponse> {
         if (sample.length < 12) sample.push({ objectId: c.objectId, blobId: s.blob_id, namespace: s.namespace, size: c.size, endEpoch: c.endEpoch });
       }
     }
+    // Brief locks: when did Sui certify tonight's picks, relative to the first kick-off? (read via Tatum)
+    const locks: NonNullable<ProofResponse["locks"]> = [];
+    try {
+      const rows = await q<any>(
+        `select j.idem_key, j.blob_id, j.user_id, min(p.kickoff) first_kickoff
+         from memory_jobs j join picks p on p.user_id = j.user_id and p.brief_date = split_part(j.idem_key, ':', 4)
+         where j.kind = 'brief' and j.status = 'stored' and j.blob_id is not null
+         group by j.id, j.idem_key, j.blob_id, j.user_id order by j.id desc limit 6`,
+      );
+      for (const r of rows) {
+        const c = blobs.get(blobIdToU256(r.blob_id));
+        const w = c ? await objectLastWrite(c.objectId).catch(() => null) : null;
+        const first = new Date(r.first_kickoff).toISOString();
+        locks.push({
+          date: String(r.idem_key).split(":").pop()!,
+          blobId: r.blob_id,
+          objectId: c?.objectId ?? null,
+          certifiedAt: w?.at ?? null,
+          firstKickoff: first,
+          minutesBefore: w?.at ? Math.round((Date.parse(first) - Date.parse(w.at)) / 60_000) : null,
+        });
+      }
+      if (locks.some((l) => l.certifiedAt)) via.push("Tatum gRPC · LedgerService/GetTransaction");
+    } catch {}
     let relayer = { memories: stored.length, namespaces: 0 };
     try {
       const ns = await memwal().listNamespaces({ limit: 200 });
@@ -179,6 +215,7 @@ export async function proofView(): Promise<ProofResponse> {
       blobs: { onChainCount: blobs.size, sample },
       relayer,
       verified: { matched, missing: stored.length - matched },
+      locks,
       checkedAt: new Date().toISOString(),
       links: { account: account ? suiscanObject(account.id) : "", owner: account ? suiscanAccount(account.owner) : "" },
     };

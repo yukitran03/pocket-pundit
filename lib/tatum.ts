@@ -169,6 +169,21 @@ export async function ownedBlobs(owner: string, maxPages = 20): Promise<ChainBlo
   return out;
 }
 
+/**
+ * When did this object last change on Sui? GetObject → previous_transaction, then GetTransaction → checkpoint
+ * and its timestamp. For a Walrus Blob that is the certification (or a later storage extension), so it proves
+ * the memory existed on-chain by that time.
+ */
+export async function objectLastWrite(objectId: string): Promise<{ digest: string; checkpoint: string | null; at: string | null } | null> {
+  const o: any = await grpcCall("ledger", "GetObject", { object_id: objectId, read_mask: { paths: ["object_id", "previous_transaction"] } });
+  const digest = o.object?.previous_transaction;
+  if (!digest) return null;
+  const t: any = await grpcCall("ledger", "GetTransaction", { digest, read_mask: { paths: ["digest", "checkpoint", "timestamp"] } });
+  const ts = t.transaction?.timestamp;
+  const at = ts?.seconds ? new Date(Number(ts.seconds) * 1000 + Math.floor(Number(ts.nanos ?? 0) / 1e6)).toISOString() : null;
+  return { digest, checkpoint: t.transaction?.checkpoint ?? null, at };
+}
+
 /** Delegate-key history for the account (GraphQL events, sent by the account owner). */
 export async function delegateKeyEvents(owner: string, accountId = env.memwalAccountId()) {
   const d = await gql<any>(

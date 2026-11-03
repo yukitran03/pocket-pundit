@@ -50,7 +50,11 @@ const PRIOR: Record<string, number> = {
   "400171208": 0.38, // Indian Super League
 };
 
+/** Futsal, beach soccer and esports share the calendar but aren't what people mean by "a match tonight". */
+export const NOT_ELEVEN_A_SIDE = /futsal|beach soccer|efootball|[a-z]e (?:world cup|nations cup|club world cup|continental cup|club series)|esports/i;
+
 function prior(f: Fixture): number {
+  if (NOT_ELEVEN_A_SIDE.test(f.competition)) return 0.02;
   if (PRIOR[f.compId] !== undefined) return PRIOR[f.compId];
   if (/women|femenina|frauen|féminine/i.test(f.competition)) return 0.3;
   if (/u-?1\d|u-?2\d|youth|olympic/i.test(f.competition)) return 0.28;

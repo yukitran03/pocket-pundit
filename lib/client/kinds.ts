@@ -1,6 +1,6 @@
 import type { MemoryKind, Rating, WriteStatus } from "@/lib/contract";
 
-export type KindShape = "sphere" | "cube" | "octa" | "torus" | "tetra";
+export type KindShape = "sphere" | "cube" | "octa" | "torus" | "tetra" | "seal";
 
 // Categorical palette validated all-pairs on #0c1a14 (dark). Always paired with shape + label.
 export const KIND_META: Record<MemoryKind, { label: string; color: string; shape: KindShape; blurb: string }> = {
@@ -10,6 +10,9 @@ export const KIND_META: Record<MemoryKind, { label: string; color: string; shape
   limit: { label: "Limit", color: "#d55181", shape: "torus", blurb: "A hard boundary" },
   taste: { label: "Taste", color: "#83958a", shape: "tetra", blurb: "A derived taste weight" },
   system: { label: "System", color: "#83958a", shape: "tetra", blurb: "Account bookkeeping" },
+  // Not taste: tonight's three picks, written before kick-off (the memory-off pick is a sealed sha256 commit).
+  // Parchment, much lighter than every taste kind, and always paired with its own hexagonal "seal" shape.
+  brief: { label: "Locked brief", color: "#e2d6b4", shape: "seal", blurb: "Tonight's picks, sealed before kick-off" },
 };
 
 export const PRIMARY_KINDS: MemoryKind[] = ["rating", "lesson", "preference", "limit"];

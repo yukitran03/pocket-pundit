@@ -76,18 +76,24 @@ function toFixture(m: any): Fixture | null {
   };
 }
 
+const HOUR = 3600_000;
+const iso = (t: number) => new Date(t).toISOString().slice(0, 19) + "Z";
+
 /** All fixtures kicking off in [from, to). Split into ≤6h windows so the 500-per-call cap never truncates. */
 export async function fixturesBetween(from: Date, to: Date): Promise<Fixture[]> {
   const out = new Map<string, Fixture>();
-  const step = 6 * 3600_000;
-  for (let a = from.getTime(); a < to.getTime(); a += step) {
-    const b = Math.min(a + step, to.getTime());
-    const fromIso = new Date(a).toISOString().slice(0, 19) + "Z";
-    const toIso = new Date(b).toISOString().slice(0, 19) + "Z";
+  const step = 6 * HOUR;
+  // The calendar route answers `null` for some off-hour bounds (e.g. 12:45), so query whole hours and filter after.
+  const start = Math.floor(from.getTime() / HOUR) * HOUR;
+  const end = Math.ceil(to.getTime() / HOUR) * HOUR;
+  for (let a = start; a < end; a += step) {
+    const b = Math.min(a + step, end);
+    const fromIso = iso(a);
+    const toIso = iso(b);
     const key = `feed:cal:${fromIso}:${toIso}`;
     const rows: Fixture[] = await cached(key, 20 * 60, async () => {
       const j = await getJson(`calendar/matches?from=${fromIso}&to=${toIso}&language=en&count=500`);
-      return (j.Results || []).map(toFixture).filter(Boolean) as Fixture[];
+      return (j?.Results || []).map(toFixture).filter(Boolean) as Fixture[];
     });
     for (const f of rows) out.set(f.matchId, f);
   }
@@ -160,9 +166,11 @@ export async function timeline(matchId: string): Promise<TimelineEvent[] | null>
 /** Matches in play right now (kicked off in the last 2.5h and status live), refreshed every ~4 minutes. */
 export async function liveNow(): Promise<(Fixture & { minute: number })[]> {
   const now = Date.now();
-  const iso = (t: number) => new Date(t).toISOString().slice(0, 19) + "Z";
   return cached(`feed:live:${Math.floor(now / 240_000)}`, 300, async () => {
-    const j = await getJson(`calendar/matches?from=${iso(now - 150 * 60_000)}&to=${iso(now)}&language=en&count=500`);
+    // Whole-hour bounds (see fixturesBetween); the status filter below keeps only matches in play.
+    const from = Math.floor((now - 150 * 60_000) / HOUR) * HOUR;
+    const to = Math.ceil(now / HOUR) * HOUR;
+    const j = await getJson(`calendar/matches?from=${iso(from)}&to=${iso(to)}&language=en&count=500`);
     return (j?.Results || [])
       .filter((m: any) => m.MatchStatus === 3)
       .map((m: any) => {

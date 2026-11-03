@@ -4,7 +4,7 @@
 export type Arm = "memory" | "control";
 export type Rating = "loved" | "fine" | "bailed" | "skipped";
 export type PickStatus = "upcoming" | "live" | "finished";
-export type MemoryKind = "system" | "preference" | "rating" | "lesson" | "limit" | "taste";
+export type MemoryKind = "system" | "preference" | "rating" | "lesson" | "limit" | "taste" | "brief";
 export type WriteStatus = "queued" | "pending" | "stored" | "failed";
 
 export interface Drama {
@@ -41,6 +41,42 @@ export interface Pick {
   cites: Cite[]; // memories recalled from Walrus that shaped this pick (empty for control picks)
   rating: Rating | null;
   drama: Drama | null;
+  // Tonight's brief is written to Walrus before kick-off, so picks (and which arm chose them) can't be edited later.
+  lock?: { blobId: string | null; lockedAt: string; minutesBeforeKickoff: number } | null;
+}
+
+/** GET /api/tonight?tz=Area/City — public, no login. The agent with memory off, for anyone. */
+export interface TonightMatch {
+  matchId: string;
+  kickoff: string; // ISO UTC
+  competition: string;
+  stage: string | null;
+  home: string;
+  away: string;
+  status: "upcoming" | "live";
+  minute: number | null; // when live
+  score: number; // 0..100 "worth watching" for a neutral fan
+  reasons: string[]; // at most 2, short
+}
+
+export interface ReplayMatch {
+  matchId: string;
+  kickoff: string; // ISO UTC
+  competition: string;
+  home: string;
+  away: string;
+  drama: number; // 0..100 from the real timeline
+  vibe: string[]; // spoiler-safe words only, e.g. "late drama", "end to end", "tense"
+  homeScore: number | null; // the UI hides these until the viewer chooses to reveal
+  awayScore: number | null;
+}
+
+export interface TonightResponse {
+  tz: string;
+  scanned: number; // fixtures looked at in the next 12 hours
+  tonight: TonightMatch[]; // up to 8, best first
+  replays: ReplayMatch[]; // up to 6 finished in the last 24 hours, best first
+  updatedAt: string;
 }
 
 export interface MemoryRow {
@@ -124,6 +160,8 @@ export interface ProofResponse {
   };
   relayer: { memories: number; namespaces: number };
   verified: { matched: number; missing: number }; // relayer memories that have a matching on-chain Blob
+  // Brief locks: tonight's picks written to Walrus before kick-off; certification time read from Sui via Tatum.
+  locks?: { date: string; blobId: string; objectId: string | null; certifiedAt: string | null; firstKickoff: string; minutesBefore: number | null }[];
   checkedAt: string;
   links: { account: string; owner: string };
 }

@@ -1,6 +1,10 @@
 // Telegram bot: onboarding, daily brief, post-match rating, teaching. Plain Bot API over fetch.
 import { env } from "./env.ts";
 import { q, one, cacheGet, cacheSet } from "./db.ts";
+import { lockBrief, lockLine } from "./lock.ts";
+import { BRAND } from "./brand.ts";
+import { purposeKey } from "./auth.ts";
+import { askMemory } from "./extras2.ts";
 import { enqueueMemory, namespaceFor } from "./memory.ts";
 import { buildBrief, type BriefResult, type UserRow } from "./picker.ts";
 import { preferenceMemory, ratingMemory, kickBucket, limitMemory, RATING_WORD } from "./taste.ts";
@@ -79,7 +83,7 @@ async function startUser(from: any, chatId: number) {
   await q(`update users set onboard_step = 'tz' where id = $1`, [from.id]);
   await send(
     chatId,
-    `<b>Hi ${esc(name)} — I'm Match Finder.</b>\n\nEvery evening I scan the day's fixtures (often 400+) and send you the few worth your time. After each match you tap how it was, I read what actually happened in it, and I write what I learned to <b>your memory on Walrus</b> (encrypted, on Sui mainnet). Tomorrow's picks use it.\n\nFour quick questions. First: where are you?`,
+    `<b>Hi ${esc(name)} — I'm ${BRAND.name}.</b>\n\nEvery evening I go through the day's fixtures (often 400+) and send you the three most worth your time, inside the hours you can actually watch. No spoilers, a reminder before kick-off, and a ping if a game turns into a thriller.\n\nAfter full time, one tap tells me how it was. I check what really happened in the match and keep what I learn in <b>your own memory</b>: encrypted on Walrus, verifiable on Sui. No wallet needed.\n\nFour quick questions, then tonight's picks. First: where are you?`,
     TZ_OPTIONS.map(([label, tz]) => [{ text: label, callback_data: `tz:${tz}` }]),
   );
 }
@@ -109,6 +113,7 @@ export function briefText(user: UserRow, b: BriefResult, dayIndex: number, misse
     lines.push("");
   }
   if (!b.picks.length) lines.push("Nothing kicks off in your window tonight. I'll look again tomorrow.");
+  if (b.picks.length) lines.push("🔒 Locked on Walrus before kick-off. Which pick ran with memory off stays sealed until the last full time.", "");
   if (missed) lines.push(`📼 Worth the highlights from last night: <b>${esc(missed.home)} v ${esc(missed.away)}</b> (${esc(missed.competition)}), drama ${missed.drama}/100. No score here.`, "");
   lines.push(
     b.memoriesUsed
@@ -122,6 +127,7 @@ export function briefText(user: UserRow, b: BriefResult, dayIndex: number, misse
 
 export async function sendBrief(user: UserRow, now = new Date()) {
   const b = await buildBrief(user, now);
+  await lockBrief(user, b).catch(() => null);
   const missed = await missedLastNight(user, now).catch(() => null);
   const days = Math.max(1, Math.floor((now.getTime() - new Date(user.created_at).getTime()) / 86_400_000) + 1);
   await send(user.chat_id, briefText(user, b, days, missed),[[{ text: "Why these? Open your memory", url: dashboardUrl(user.id) }]]);
@@ -201,7 +207,10 @@ async function handleRating(cb: any, pickId: string, code: string) {
   const msgId = cb.message?.message_id;
   await enqueueMemory({ userId: p.user_id, namespace: p.namespace, kind: "rating", text, idem: `rating:${pickId}`, notifyChat: cb.message?.chat?.id, notifyMessage: msgId });
   await tg("answerCallbackQuery", { callback_query_id: cb.id, text: "Saved. Writing it to your Walrus memory…" });
-  if (msgId) await edit(cb.message.chat.id, msgId, `${resultText(p)}\n\nYou: <b>${RATING_WORD[rating]}</b> · ⏳ writing to Walrus…\n${reveal(p)}`);
+  if (msgId) {
+    const lock = await lockLine({ ...p, rating }).catch(() => "");
+    await edit(cb.message.chat.id, msgId, `${resultText(p)}\n\nYou: <b>${RATING_WORD[rating]}</b> · ⏳ writing to Walrus…\n${reveal(p)}${lock ? `\n${lock}` : ""}`);
+  }
 }
 
 /** After a rating, unblind the pick: was it chosen with memory, and which memories? */
@@ -234,10 +243,47 @@ async function teach(user: UserRow, text: string) {
   await q(`update memory_jobs set notify_chat = $2, notify_message = $3 where id = $1`, [r.id, user.chat_id, m.message_id]);
 }
 
+async function ask(user: UserRow, question: string) {
+  const qText = question.trim().slice(0, 300);
+  if (qText.length < 3) return send(user.chat_id, "Ask me anything about your taste, e.g. <i>/ask which leagues do I enjoy?</i> or <i>/ask what did I think of late kick-offs?</i>");
+  await tg("sendChatAction", { chat_id: user.chat_id, action: "typing" }).catch(() => {});
+  const a = await askMemory(user, qText);
+  const lines = [`<b>From your memory on Walrus</b> · ${a.hits.length} relevant, ${(a.latencyMs / 1000).toFixed(1)}s`];
+  if (a.pulls.length || a.pushes.length) {
+    lines.push("");
+    if (a.pulls.length) lines.push(`Pulls you in: ${a.pulls.map((p) => `<b>${esc(p.label)}</b> (${p.n})`).join(", ")}`);
+    if (a.pushes.length) lines.push(`Not for you: ${a.pushes.map((p) => `<b>${esc(p.label)}</b> (${p.n})`).join(", ")}`);
+  }
+  if (!a.hits.length) lines.push("", "Nothing in your memory about that yet. Rate a few matches or /teach me something.");
+  for (const h of a.hits) {
+    const body = h.text.split(" tags: ")[0].replace(/^\[(\w+)\]\s*/, (_, k) => `${k}: `);
+    lines.push("", `• ${esc(body.length > 220 ? `${body.slice(0, 217)}…` : body)} <a href="https://walruscan.com/mainnet/blob/${h.blobId}">blob</a>`);
+  }
+  return send(user.chat_id, lines.join("\n"));
+}
+
+async function sendCard(user: UserRow) {
+  const url = `${env.appUrl()}/api/card/${purposeKey("card", user.id)}?v=${Date.now().toString(36)}`;
+  await tg("sendChatAction", { chat_id: user.chat_id, action: "upload_photo" }).catch(() => {});
+  try {
+    await tg("sendPhoto", { chat_id: user.chat_id, photo: url, caption: `Your football taste, learned by ${BRAND.name} from your own Walrus memory. Forward it to a friend, or share it anywhere.\n${BRAND.botUrl}` });
+  } catch {
+    await send(user.chat_id, "I couldn't draw your card just now. Try again in a minute.");
+  }
+}
+
+async function sendCalendar(user: UserRow) {
+  const https = `${env.appUrl()}/api/cal/${purposeKey("cal", user.id)}.ics`;
+  return send(
+    user.chat_id,
+    `<b>Your picks in your calendar</b>\nSubscribe once. Every evening's picks then appear on their own, each with a reminder 20 minutes before kick-off.\n\n<code>${https}</code>\n\n<b>Google Calendar</b> (web): Other calendars → + → From URL → paste.\n<b>iPhone</b>: Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar → paste.\n<b>Mac</b>: Calendar → File → New Calendar Subscription → paste.\n\nKeep this link to yourself: it shows your picks.`,
+  );
+}
+
 async function sendHelp(chatId: number, returning = false) {
   await send(
     chatId,
-    `${returning ? "Welcome back. " : ""}<b>Commands</b>\n/picks — tonight's picks\n/me — your memory dashboard\n/teach &lt;text&gt; — tell me a preference\n/settings — time zone, brief time, watch window\n/alerts on|off — "worth switching on" pings during matches\n/spoilers on|off — show scores in full-time messages\n/help — this list\n\nOr just type a preference, e.g. <i>I love late comebacks</i>.`,
+    `${returning ? "Welcome back. " : ""}<b>What I can do</b>\n/picks — tonight's three\n/ask &lt;question&gt; — ask your memory, e.g. <i>/ask which leagues do I enjoy?</i>\n/card — your football taste as a shareable image\n/calendar — add your picks to Google or Apple Calendar\n/teach &lt;text&gt; — tell me a preference\n/me — your private dashboard\n/alerts on|off — "worth switching on" pings during matches\n/spoilers on|off — show scores in full-time messages\n/settings — time zone, brief time, watch window\n\nOr just type a preference, e.g. <i>I love late comebacks</i>.`,
   );
 }
 
@@ -286,6 +332,9 @@ export async function handleUpdate(update: any) {
       }
       return send(u.chat_id, rows.map((p) => `<b>${p.slot}. ${esc(p.home)} v ${esc(p.away)}</b>\n${esc(p.competition)} · ${fmtLocalTime(new Date(p.kickoff).toISOString(), u.tz)} · ${Math.round(p.score)}/100${p.rating ? ` · you: ${p.rating}` : ""}`).join("\n\n"), [[{ text: "Open dashboard", url: dashboardUrl(u.id) }]]);
     }
+    if (command === "/ask") return ask(u, rest.join(" "));
+    if (command === "/card") return sendCard(u);
+    if (command === "/calendar") return sendCalendar(u);
     if (command === "/teach") return teach(u, rest.join(" "));
     if (!command && text && u.onboard_step === "done") return teach(u, text);
     if (u.onboard_step !== "done") return send(u.chat_id, "Let's finish setup first — tap one of the buttons above, or /start to begin again.");

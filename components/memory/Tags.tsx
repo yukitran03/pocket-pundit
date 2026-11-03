@@ -12,6 +12,7 @@ export function ShapeGlyph({ shape, color, size = 12 }: { shape: KindShape; colo
       {shape === "octa" && <path d="M6 .5 11.5 6 6 11.5.5 6Z" {...c} />}
       {shape === "torus" && <circle cx="6" cy="6" r="3.9" fill="none" stroke={color} strokeWidth="2.4" />}
       {shape === "tetra" && <path d="M6 1 11.2 10.5H.8Z" {...c} />}
+      {shape === "seal" && <path d="M6 .9 10.6 3.5v5L6 11.1 1.4 8.5v-5Z" fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" />}
     </svg>
   );
 }

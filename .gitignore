@@ -11,3 +11,4 @@ coverage/
 out/
 tsconfig.tsbuildinfo
 next-env.d.ts
+AGENTS.md

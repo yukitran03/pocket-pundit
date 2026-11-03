@@ -12,6 +12,7 @@ import { enqueueMemory } from "./memory.ts";
 import { buildTaste, lessonMemory, parseMemory, humanKey } from "./taste.ts";
 import type { UserRow } from "./picker.ts";
 import { KNOWN_COMPS } from "./views.ts";
+import { lockLine } from "./lock.ts";
 
 export interface TickReport {
   memory: { submitted: number; stored: number; failed: number };
@@ -57,6 +58,11 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
           await sendBrief(u, now);
           rep.briefs++;
         });
+      }
+      // Get tonight's brief locks onto Walrus right away rather than on the next tick.
+      if (rep.briefs) {
+        const m = await processMemoryQueue(6);
+        rep.memory.submitted += m.submitted;
       }
     });
 
@@ -148,7 +154,8 @@ async function notifyStored(chatId: number, messageId: number, blobId: string) {
   const job = await q<any>(`select p.* from picks p where p.ask_message_id = $1 limit 1`, [messageId]);
   if (job[0]) {
     const p = job[0];
-    await edit(chatId, messageId, `${resultText(p)}\n\nYou: <b>${p.rating}</b> · ✅ stored on Walrus · <a href="${walruscan(blobId)}">${short}</a>\n${reveal(p)}`);
+    const lock = await lockLine(p).catch(() => "");
+    await edit(chatId, messageId, `${resultText(p)}\n\nYou: <b>${p.rating}</b> · ✅ stored on Walrus · <a href="${walruscan(blobId)}">${short}</a>\n${reveal(p)}${lock ? `\n${lock}` : ""}`);
   } else {
     await tg("sendMessage", {
       chat_id: chatId,

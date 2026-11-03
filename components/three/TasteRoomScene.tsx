@@ -120,6 +120,7 @@ function geometryFor(shape: KindShape): THREE.BufferGeometry {
     case "octa": return new THREE.OctahedronGeometry(0.22);
     case "torus": return new THREE.TorusGeometry(0.15, 0.055, 10, 28);
     case "tetra": return new THREE.TetrahedronGeometry(0.2);
+    case "seal": return new THREE.CylinderGeometry(0.17, 0.17, 0.07, 6).rotateX(Math.PI / 2); // hexagonal seal, face to camera
   }
 }
 
@@ -128,7 +129,7 @@ function Room({ items, currentEpoch, selected, highlighted, onHover, onSelect, r
   const seats = useMemo(() => seatLayout(shown.length), [shown.length]);
   const geos = useMemo(() => {
     const m = new Map<KindShape, THREE.BufferGeometry>();
-    (["sphere", "cube", "octa", "torus", "tetra"] as KindShape[]).forEach((s) => m.set(s, geometryFor(s)));
+    (["sphere", "cube", "octa", "torus", "tetra", "seal"] as KindShape[]).forEach((s) => m.set(s, geometryFor(s)));
     return m;
   }, []);
   const lines = useMemo(() => pitchLinesGeometry(S, 0.45), []);
