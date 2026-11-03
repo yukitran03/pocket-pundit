@@ -7,7 +7,7 @@ console.log("pubkey matches env:", (await mw.getPublicKeyHex()) === process.env.
 const ns = await mw.listNamespaces({ limit: 50 });
 console.log("namespaces", JSON.stringify(ns.namespaces).slice(0, 400));
 const ns1 = "mf:system";
-const text = `[system][${new Date().toISOString().slice(0,10)}] Match Finder agent online. It recommends one football match worth watching each night and learns the viewer's taste from ratings and match timelines.`;
+const text = `[system][${new Date().toISOString().slice(0,10)}] Pocket Pundit agent online. It recommends one football match worth watching each night and learns the viewer's taste from ratings and match timelines.`;
 const acc = await mw.remember(text, ns1, { idempotencyKey: "mf:system:boot:v1" });
 console.log("remember accepted", JSON.stringify(acc), (Date.now()-t0)+"ms");
 const res = await mw.waitForRememberJob(acc.job_id, { timeoutMs: 180000, pollIntervalMs: 3000 });

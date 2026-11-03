@@ -14,7 +14,7 @@ if (info.url) {
 
 let offset = 0;
 let lastTick = 0;
-console.log("Match Finder local runner: polling Telegram…");
+console.log("Pocket Pundit local runner: polling Telegram…");
 for (;;) {
   try {
     const updates: any[] = await tg("getUpdates", { offset, timeout: 25, allowed_updates: ["message", "callback_query"] });
