@@ -6,16 +6,29 @@ import { env, MEMWAL_PACKAGE } from "./env.ts";
 import { q, one } from "./db.ts";
 import { memwalAccount } from "./tatum.ts";
 import { enqueueMemory } from "./memory.ts";
+import { ed25519 } from "@noble/curves/ed25519.js";
 
 export const MEMWAL_REGISTRY = "0x8bf82c9e09e36b8d1c38298f68b7cb68e7b8762887e7592add9986d5e9cf199f"; // relayer /config, mainnet
 export const DELEGATE_LABEL = "Pocket Pundit";
+
+let derivedPub: string | null = null;
+/** Our delegate public key: from the environment, or derived from the delegate private key (Ed25519). */
+function delegatePublicKeyHex(): string {
+  const fromEnv = (process.env.MEMWAL_PUBLIC_KEY || "").toLowerCase();
+  if (fromEnv) return fromEnv;
+  if (!derivedPub) {
+    const priv = process.env.MEMWAL_PRIVATE_KEY || "";
+    derivedPub = /^[0-9a-f]{64}$/i.test(priv) ? Buffer.from(ed25519.getPublicKey(Buffer.from(priv, "hex"))).toString("hex") : "";
+  }
+  return derivedPub;
+}
 
 export function ownConfig() {
   return {
     network: "mainnet" as const,
     packageId: MEMWAL_PACKAGE,
     registryId: MEMWAL_REGISTRY,
-    publicKeyHex: (process.env.MEMWAL_PUBLIC_KEY || "").toLowerCase(),
+    publicKeyHex: delegatePublicKeyHex(),
     label: DELEGATE_LABEL,
     appAccountId: process.env.MEMWAL_ACCOUNT_ID || null,
   };
