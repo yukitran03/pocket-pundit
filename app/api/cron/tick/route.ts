@@ -11,10 +11,14 @@ async function run(req: Request) {
   const secret = env.cronSecret();
   const auth = req.headers.get("authorization") || "";
   if (!secret || !safeEqual(auth, `Bearer ${secret}`)) return new Response("forbidden", { status: 403 });
-  // Any external tick also (re)seeds the queue heartbeat; duplicates per slot are dropped by the queue.
-  const beat = await scheduleNextBeat().catch((e) => ({ error: String(e?.message || e).slice(0, 160) }));
+  const fail = (e: any) => ({ error: String(e?.message || e).slice(0, 160) });
+  // First a fallback beat on the idle grid, so the chain survives even if this tick dies; then, once the tick
+  // knows what's due, the real next beat. Duplicates per slot are dropped by the queue.
+  const fallback = await scheduleNextBeat(Date.now(), null).catch(fail);
   const report = await tick();
-  return Response.json({ ...(report ?? { skipped: "another tick is running" }), beat });
+  const due = report ? (report.next ? Date.parse(report.next) : null) : null;
+  const beat = report ? await scheduleNextBeat(Date.now(), due).catch(fail) : fallback;
+  return Response.json({ ...(report ?? { skipped: "another tick is running" }), beat, fallback });
 }
 
 export const GET = run;

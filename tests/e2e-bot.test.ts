@@ -339,6 +339,27 @@ describe("commands", () => {
     expect(lastText(m)).not.toMatch(/Worth switching on/);
   });
 
+  it("paces the heartbeat: now while work is in motion, otherwise the next deadline", async () => {
+    await settleQueue();
+    const t = Date.now();
+    const now = new Date(t);
+    const before = await L.db.one(`select last_brief_date from users where id = $1`, [U.id]);
+    await L.db.q(`update users set last_brief_date = $2 where id = $1`, [U.id, L.util.localParts(now, TZ).date]);
+    // Alerts are off (previous step), every memory is stored and every past pick settled: sleep until a deadline.
+    const quiet = await L.tick.nextWorkAt(now, true);
+    expect(quiet).toBeGreaterThan(t);
+    expect(quiet).toBeLessThanOrEqual(t + 48 * H);
+    // Inside the watch window with matches live: keep the 5-minute pace.
+    await L.db.q(`update users set alerts = true where id = $1`, [U.id]);
+    expect(await L.tick.nextWorkAt(now, true)).toBe(t);
+    expect(await L.tick.nextWorkAt(now, false)).toBeGreaterThan(t);
+    await L.db.q(`update users set alerts = false, last_brief_date = $2 where id = $1`, [U.id, before.last_brief_date]);
+    // A memory write waiting to settle also keeps the pace.
+    await L.db.q(`insert into memory_jobs (user_id, namespace, kind, text, idem_key) values ($1, 'ns', 'system', 'pace', 'pace-test')`, [U.id]);
+    expect(await L.tick.nextWorkAt(now, false)).toBe(t);
+    await L.db.q(`delete from memory_jobs where idem_key = 'pace-test'`);
+  });
+
   it("the dashboard view shows locks, cited memories and A/B counts", async () => {
     const v = await L.views.meView(U.id);
     const all = [...v.today, ...v.history];

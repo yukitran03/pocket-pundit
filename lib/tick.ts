@@ -7,7 +7,7 @@ import { computeDrama } from "./drama.ts";
 import { alertKeyboard, askText, edit, ratingKeyboard, resultText, reveal, send, sendBrief, tg } from "./telegram.ts";
 import { dueReminders, liveAlertsFor, liveNow } from "./extras.ts";
 import { fmtLocalTime } from "./util.ts";
-import { localParts, walruscan } from "./util.ts";
+import { localParts, localToUtc, walruscan } from "./util.ts";
 import { enqueueMemory } from "./memory.ts";
 import { buildTaste, lessonMemory, parseMemory, humanKey } from "./taste.ts";
 import type { UserRow } from "./picker.ts";
@@ -25,15 +25,58 @@ export interface TickReport {
   lessons: number;
   reminders: number;
   alerts: number;
+  /** When the next pass has work (ISO), or null when nothing is due; the heartbeat paces itself on this. */
+  next: string | null;
   errors: string[];
   ms: number;
+}
+
+/**
+ * When the scheduler next has work, in ms: `now` while anything is in motion (memory writes settling, a match to
+ * settle, a user inside their alert window), otherwise the earliest upcoming deadline (a brief, a kick-off reminder,
+ * a full time, an alert window opening), or null if there is none. Lets the heartbeat sleep through quiet hours so
+ * the database can scale to zero.
+ */
+export async function nextWorkAt(now: Date, live = true): Promise<number | null> {
+  const t = now.getTime();
+  const iso = now.toISOString();
+  const [busy] = await q<any>(
+    `select (select count(*)::int from memory_jobs where (status = 'queued' and attempts < 6) or status = 'pending') as mem,
+            (select count(*)::int from picks where settled_at is null and kickoff < $1::timestamptz - interval '110 minutes'
+               and kickoff > $1::timestamptz - interval '4 days') as settle`,
+    [iso],
+  );
+  if (busy?.mem || busy?.settle) return t;
+  const marks: number[] = [];
+  const picks = await q<any>(`select kickoff, reminded_at, rating from picks where settled_at is null and kickoff >= $1::timestamptz - interval '110 minutes'`, [iso]);
+  for (const p of picks) {
+    const k = Date.parse(p.kickoff);
+    if (!p.reminded_at && !p.rating && k > t) marks.push(k - 33 * 60_000);
+    marks.push(k + 110 * 60_000);
+  }
+  const users = await q<any>(`select tz, brief_hour, window_start, window_end, alerts, last_brief_date from users where active and onboard_step = 'done'`);
+  for (const u of users) {
+    const lp = localParts(now, u.tz);
+    const tomorrow = localParts(new Date(t + 86_400_000), u.tz).date;
+    marks.push(localToUtc(u.last_brief_date === lp.date ? tomorrow : lp.date, u.brief_hour, u.tz).getTime());
+    if (!u.alerts) continue;
+    // Same window as liveAlertsFor: an hour before the window opens until it closes (it may run past midnight).
+    const start = localToUtc(lp.date, u.window_start - 1, u.tz).getTime();
+    const end = localToUtc(lp.date, u.window_end <= u.window_start ? u.window_end + 24 : u.window_end, u.tz).getTime();
+    const inside = (t >= start && t <= end) || (t >= start - 86_400_000 && t <= end - 86_400_000);
+    if (inside && live) return t;
+    marks.push(start > t ? start : start + 86_400_000);
+  }
+  return marks.length ? Math.max(t, Math.min(...marks)) : null;
 }
 
 export async function tick(now = new Date()): Promise<TickReport | null> {
   return withLease("tick", 280, async () => {
     const t0 = Date.now();
     const errors: string[] = [];
-    const rep: TickReport = { memory: { submitted: 0, stored: 0, failed: 0 }, briefs: 0, settled: 0, asked: 0, lessons: 0, reminders: 0, alerts: 0, errors, ms: 0 };
+    // `next` defaults to now (keep the 5-minute pace) in case planning fails.
+    const rep: TickReport = { memory: { submitted: 0, stored: 0, failed: 0 }, briefs: 0, settled: 0, asked: 0, lessons: 0, reminders: 0, alerts: 0, next: now.toISOString(), errors, ms: 0 };
+    let liveCount = 1; // assume matches are live unless the feed says otherwise
     const guard = async (label: string, fn: () => Promise<void>) => {
       try {
         await fn();
@@ -128,6 +171,7 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
 
     await guard("alerts", async () => {
       const live = await liveNow();
+      liveCount = live.length;
       if (!live.length) return;
       const users = await q<any>(`select * from users where active and onboard_step = 'done' and alerts`);
       for (const u of users) {
@@ -172,6 +216,11 @@ ${escHtml(a.why)}${u.show_scores ? "" : " (Score hidden.)"}`;
     await guard("tonight", async () => {
       await tonightView("UTC", now);
       await coverageMap(now); // which competitions the feed settles; used by tomorrow's briefs
+    });
+
+    await guard("plan", async () => {
+      const at = await nextWorkAt(now, liveCount > 0);
+      rep.next = at == null ? null : new Date(at).toISOString();
     });
 
     rep.ms = Date.now() - t0;
