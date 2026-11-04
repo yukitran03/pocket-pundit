@@ -68,7 +68,7 @@ function toFixture(m: any): Fixture | null {
     compId: m.IdCompetition,
     seasonId: m.IdSeason,
     stageId: m.IdStage,
-    competition: desc(m.CompetitionName) || "Football",
+    competition: desc(m.CompetitionName).replace(/[™®]/g, "").trim() || "Football",
     stage: desc(m.StageName) || null,
     kickoff: m.Date,
     home,
