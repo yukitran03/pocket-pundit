@@ -7,7 +7,7 @@ import { safeEqual, sleep } from "@/lib/util.ts";
 import { scheduleNextBeat } from "@/lib/heartbeat.ts";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300; // the tick below runs under a 280 s lease; never cut it off while it holds it
 
 export async function POST(req: Request) {
   const secret = env.telegramWebhookSecret();

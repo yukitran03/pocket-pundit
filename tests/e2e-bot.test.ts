@@ -481,8 +481,13 @@ describe("own your memory", () => {
 
   it("refuses an account without our key, the shared account, or junk", async () => {
     const own = await import("../lib/own.ts");
-    own.setOwnershipVerifier(async () => ({ owner: OWNER, active: true, keys: ["00".repeat(32)] }));
+    own.setOwnershipVerifier(async () => ({ owner: OWNER, active: true, keys: [{ pub: "00".repeat(32), label: own.viewerLabel(U.id) }] }));
     expect((await own.claimAccount(U.id, MINE)).ok).toBe(false);
+    // Our key is the same for everyone: one added from another viewer's link doesn't let this viewer claim it.
+    own.setOwnershipVerifier(async () => ({ owner: OWNER, active: true, keys: [{ pub: "ab".repeat(32), label: own.viewerLabel(U.id + 1) }] }));
+    const other = await own.claimAccount(U.id, MINE);
+    expect(other.ok).toBe(false);
+    expect((other as any).reason).toMatch(/another link/);
     expect((await own.claimAccount(U.id, process.env.MEMWAL_ACCOUNT_ID!)).ok).toBe(false);
     expect((await own.claimAccount(U.id, "not-an-id")).ok).toBe(false);
     expect((await L.db.one(`select memwal_account from users where id = $1`, [U.id])).memwal_account).toBeNull();
@@ -490,7 +495,7 @@ describe("own your memory", () => {
 
   it("claims a verified account, copies memories across once, and routes new memories there", async () => {
     const own = await import("../lib/own.ts");
-    own.setOwnershipVerifier(async () => ({ owner: OWNER, active: true, keys: ["ab".repeat(32)] }));
+    own.setOwnershipVerifier(async () => ({ owner: OWNER, active: true, keys: [{ pub: "ab".repeat(32), label: own.viewerLabel(U.id) }] }));
     const before = (await L.extras.ledgerTaste(U.id, "2026-11-10")).memoriesUsed;
     const r = await own.claimAccount(U.id, MINE);
     expect(r.ok).toBe(true);

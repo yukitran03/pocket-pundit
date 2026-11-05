@@ -209,6 +209,17 @@ export interface BriefResult {
   recallMs: number;
 }
 
+/** A pick row as the brief shows it (only the fields the brief text and the lock read). */
+function storedPick(r: any, tz: string): BriefResult["picks"][number] {
+  const kickoff = new Date(r.kickoff).toISOString();
+  const f: Fixture = {
+    matchId: r.match_id, compId: r.comp_id, seasonId: r.season_id, stageId: r.stage_id, competition: r.competition, stage: r.stage,
+    kickoff, home: r.home, away: r.away, homeId: r.home_id, awayId: r.away_id, country: null, homeScore: null, awayScore: null, status: 1,
+  };
+  const c = { f, label: r.competition, localKick: fmtLocalTime(kickoff, tz) } as unknown as Candidate;
+  return { id: r.id, slot: r.slot, arm: r.arm, c, reasons: r.reasons ?? [], neutral: r.features?.neutral ?? [], cites: r.cites ?? [], score: Math.round(Number(r.score)) };
+}
+
 /** Choose tonight's picks for a user and persist them. Idempotent per (user, date). */
 export async function buildBrief(user: UserRow, now = new Date()): Promise<BriefResult> {
   const { date } = localParts(now, user.tz);
@@ -219,6 +230,13 @@ export async function buildBrief(user: UserRow, now = new Date()): Promise<Brief
 
   const recall = await recallTaste(user.id, user.namespace);
   const taste = recall.memories.length ? buildTaste(recall.memories, date) : null;
+
+  // A retry (the first send failed, or /picks raced the scheduler) shows the picks already stored for tonight,
+  // not an empty brief, so every reminder and full-time ask is for a pick the user was shown.
+  const stored = await q<any>(`select * from picks where user_id = $1 and brief_date = $2 order by slot`, [user.id, date]);
+  if (stored.length) {
+    return { briefDate: date, picks: stored.map((r) => storedPick(r, user.tz)), considered: fixtures.length, recallOk: recall.ok, memoriesUsed: taste?.memoriesUsed ?? 0, recallMs: recall.latencyMs };
+  }
 
   // Cheap pre-ranking, then fetch recent form only for the shortlist.
   const pre = scoreCandidates(fixtures, new Map(), taste, user.tz, winEnd);

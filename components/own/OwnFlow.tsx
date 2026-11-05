@@ -44,8 +44,9 @@ export function OwnFlow() {
   const [copied, setCopied] = useState<number | null>(null);
 
   useEffect(() => {
-    setToken(new URLSearchParams(window.location.search).get("t"));
-    fetch("/api/own/config").then((r) => r.json()).then(setConfig).catch(() => setError("Couldn't load the setup details. Refresh to try again."));
+    const t = new URLSearchParams(window.location.search).get("t");
+    setToken(t);
+    fetch(t ? `/api/own/config?t=${encodeURIComponent(t)}` : "/api/own/config").then((r) => r.json()).then(setConfig).catch(() => setError("Couldn't load the setup details. Refresh to try again."));
     const api = getWallets();
     const refresh = () => setWallets(suiWallets());
     refresh();

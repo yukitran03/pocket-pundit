@@ -199,17 +199,19 @@ export async function cached<T>(k: string, ttlSeconds: number, fn: () => Promise
 // Best-effort lease so overlapping ticks (cron + webhook) don't double-send.
 export async function withLease<T>(name: string, seconds: number, fn: () => Promise<T>): Promise<T | null> {
   const k = `lease:${name}`;
+  const holder = Math.random().toString(36).slice(2);
   const got = await q(
-    `insert into kv (k, v, expires_at) values ($1, '{}'::jsonb, now() + ($2::int * interval '1 second'))
+    `insert into kv (k, v, expires_at) values ($1, $3::jsonb, now() + ($2::int * interval '1 second'))
      on conflict (k) do update set v = excluded.v, expires_at = excluded.expires_at
      where kv.expires_at is null or kv.expires_at < now()
      returning k`,
-    [k, seconds],
+    [k, seconds, JSON.stringify({ holder })],
   );
   if (!got.length) return null;
   try {
     return await fn();
   } finally {
-    await q(`delete from kv where k = $1`, [k]);
+    // Only release our own lease: a pass that overran it must not free the next holder's.
+    await q(`delete from kv where k = $1 and v->>'holder' = $2`, [k, holder]);
   }
 }

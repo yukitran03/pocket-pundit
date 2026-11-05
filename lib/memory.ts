@@ -97,6 +97,12 @@ export interface StoredJob {
   kind: string;
 }
 
+/** Write attempts before a memory is marked failed. Retries back off 1, 2, 4… minutes (capped at 6 hours), so
+ * a relayer outage of about a day loses nothing. */
+export const MAX_ATTEMPTS = 12;
+/** SQL condition: a queued write whose next attempt is due. */
+export const DUE_QUEUED = `status = 'queued' and attempts < ${MAX_ATTEMPTS} and (attempts = 0 or updated_at < now() - least(interval '6 hours', interval '1 minute' * power(2, attempts)))`;
+
 /**
  * Submit queued writes (paced under the relayer's ~12/min per-key limit) and settle pending ones.
  * Returns the jobs that reached `stored` in this pass so callers can notify users.
@@ -104,7 +110,9 @@ export interface StoredJob {
 export async function processMemoryQueue(maxSubmit = 8): Promise<{ submitted: number; stored: StoredJob[]; failed: number }> {
   let submitted = 0;
   let failed = 0;
-  const queued = await q(`select * from memory_jobs where status = 'queued' and attempts < 6 order by id asc limit $1`, [maxSubmit]);
+  // A submitted write the relayer never reports back on goes round again (same idempotency key) after an hour.
+  await q(`update memory_jobs set status = 'queued', error = 'no answer from the relayer after an hour', updated_at = now() where status = 'pending' and updated_at < now() - interval '1 hour'`);
+  const queued = await q(`select * from memory_jobs where ${DUE_QUEUED} order by id asc limit $1`, [maxSubmit]);
   for (const j of queued) {
     try {
       const acc = await memwal(j.account_id).remember(j.text, j.namespace, { idempotencyKey: j.idem_key });
@@ -113,7 +121,8 @@ export async function processMemoryQueue(maxSubmit = 8): Promise<{ submitted: nu
     } catch (e: any) {
       const msg = String(e?.message || e).slice(0, 300);
       const rateLimited = /429|rate/i.test(msg);
-      await q(`update memory_jobs set attempts=attempts+1, error=$2, updated_at=now() where id=$1`, [j.id, msg]);
+      await q(`update memory_jobs set attempts=attempts+1, error=$2, updated_at=now(), status = case when attempts + 1 >= $3 then 'failed' else status end where id=$1`, [j.id, msg, MAX_ATTEMPTS]);
+      if (Number(j.attempts) + 1 >= MAX_ATTEMPTS) failed++;
       if (rateLimited) break;
     }
     await sleep(350);
@@ -136,7 +145,7 @@ export async function processMemoryQueue(maxSubmit = 8): Promise<{ submitted: nu
           stored.push({ id: Number(p.id), blobId: r.blob_id, notifyChat: p.notify_chat ? Number(p.notify_chat) : null, notifyMessage: p.notify_message ? Number(p.notify_message) : null, kind: p.kind });
         } else if (r.status === "failed" || r.status === "not_found") {
           // Re-queue once more; the idempotency key makes the retry safe.
-          const giveUp = Number(p.attempts) >= 5;
+          const giveUp = Number(p.attempts) >= MAX_ATTEMPTS - 1;
           await q(`update memory_jobs set status=$3, error=$2, updated_at=now() where id=$1`, [p.id, r.error || r.status, giveUp ? "failed" : "queued"]);
           if (giveUp) failed++;
         }

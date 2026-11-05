@@ -26,7 +26,12 @@ export async function tg(method: string, body: Record<string, unknown>): Promise
     body: JSON.stringify(body),
   });
   const j: any = await r.json();
-  if (!j.ok && !/message is not modified/.test(j.description || "")) throw new Error(`telegram ${method}: ${j.description}`);
+  if (!j.ok && !/message is not modified/.test(j.description || "")) {
+    // 403: the user blocked the bot or deleted their account. Stop scheduling sends to them (briefs, reminders,
+    // asks) until they write to the bot again, so one unreachable chat can't hold up everyone else's.
+    if (j.error_code === 403 && body.chat_id != null) await q(`update users set active = false where chat_id = $1`, [body.chat_id]).catch(() => {});
+    throw new Error(`telegram ${method}: ${j.description}`);
+  }
   return j.result;
 }
 
@@ -217,7 +222,8 @@ async function handleRating(cb: any, pickId: string, code: string) {
   const p = await one<any>(`select p.*, u.tz, u.namespace from picks p join users u on u.id = p.user_id where p.id = $1 and p.user_id = $2`, [pickId, cb.from.id]);
   if (!p || !rating) return tg("answerCallbackQuery", { callback_query_id: cb.id, text: "That pick has expired." });
   if (p.rating) return tg("answerCallbackQuery", { callback_query_id: cb.id, text: `Already saved: ${p.rating}.` });
-  await q(`update picks set rating = $2, rated_at = now() where id = $1`, [pickId, rating]);
+  const won = await q(`update picks set rating = $2, rated_at = now() where id = $1 and rating is null returning id`, [pickId, rating]);
+  if (!won.length) return tg("answerCallbackQuery", { callback_query_id: cb.id, text: "Already saved." });
   const lp = localParts(new Date(p.kickoff), p.tz);
   const localKick = `${String(lp.hour).padStart(2, "0")}:${String(lp.minute).padStart(2, "0")}`;
   const text = ratingMemory({
@@ -344,14 +350,21 @@ async function duoCommand(u: any, arg: string) {
 
 /** Tonight's picks: send the brief if there isn't one yet, otherwise a compact list with how each went. */
 async function picksCommand(u: any) {
-  const date = localParts(new Date(), u.tz).date;
+  const now = new Date();
+  const lp = localParts(now, u.tz);
+  // Before today's brief hour, the latest picks are last night's (a watch window can run past midnight). Sending a
+  // new brief then would come early and cancel the evening one.
+  const early = lp.hour < u.brief_hour;
+  const date = early ? localParts(new Date(now.getTime() - 86_400_000), u.tz).date : lp.date;
   const rows = await q<any>(`select * from picks where user_id = $1 and brief_date = $2 order by slot`, [u.id, date]);
   if (!rows.length) {
     if (u.onboard_step !== "done") return send(u.chat_id, "Finish the setup questions above first.");
+    if (early) return send(u.chat_id, `Tonight's picks arrive at ${hh(u.brief_hour)}.`);
     return sendBrief(u);
   }
   const RATED: Record<string, string> = { loved: "😍 loved", fine: "🙂 fine", bailed: "😴 bailed", skipped: "🙈 didn't watch" };
-  const lines = ["<b>⚽ Tonight's picks</b>", ""];
+  const stillTonight = !early || lp.hour < u.window_end - 24;
+  const lines = [stillTonight ? "<b>⚽ Tonight's picks</b>" : "<b>⚽ Last night's picks</b>", ...(stillTonight ? [] : [`Tonight's arrive at ${hh(u.brief_hour)}.`]), ""];
   for (const p of rows) {
     lines.push(`<b>${p.slot} · ${esc(fmtLocalTime(new Date(p.kickoff).toISOString(), u.tz))}  ${esc(p.home)} v ${esc(p.away)}</b>`);
     lines.push(`${esc(p.competition)} · ${Math.round(p.score)}/100${p.rating ? ` · you: ${RATED[p.rating] ?? p.rating}` : ""}`);
@@ -389,6 +402,7 @@ export async function handleUpdate(update: any) {
     if (command === "/start") return startUser(m.from, m.chat.id, rest[0]);
     const u = await getUser(m.from.id);
     if (!u) return startUser(m.from, m.chat.id);
+    if (!u.active) await q(`update users set active = true where id = $1`, [u.id]); // back after blocking the bot
     if (command === "/help") return sendHelp(u.chat_id);
     if (command === "/me") return send(u.chat_id, "Your memory, picks and what I've learned:", [[{ text: "Open dashboard", url: dashboardUrl(u.id) }]]);
     if (command === "/settings") return showSettings(u);
@@ -436,6 +450,7 @@ export async function handleUpdate(update: any) {
     const chatId = cb.message?.chat?.id;
     const u = await getUser(cb.from.id);
     if (!u || !chatId) return tg("answerCallbackQuery", { callback_query_id: cb.id, text: "Send /start first." });
+    if (!u.active) await q(`update users set active = true where id = $1`, [u.id]);
     const [kind, a, b] = data.split(":");
     if (kind === "r") return handleRating(cb, a, b);
     if (kind === "al") return handleAlertResponse(cb, a, b);

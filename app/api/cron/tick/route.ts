@@ -17,7 +17,9 @@ async function run(req: Request) {
   const fallback = await scheduleNextBeat(Date.now(), null).catch(fail);
   const report = await tick();
   const due = report ? (report.next ? Date.parse(report.next) : null) : null;
-  const beat = report ? await scheduleNextBeat(Date.now(), due).catch(fail) : fallback;
+  // Lease taken: another pass (often the webhook's) is mid-run and won't schedule from its result, so keep the
+  // 5-minute pace rather than dropping to the idle grid.
+  const beat = await scheduleNextBeat(Date.now(), report ? due : Date.now()).catch(fail);
   return Response.json({ ...(report ?? { skipped: "another tick is running" }), beat, fallback });
 }
 

@@ -1,7 +1,7 @@
 // One scheduler pass: settle memory writes, send due briefs, settle finished matches, write daily lessons.
 // Safe to run often and concurrently (lease), from Vercel cron, GitHub Actions, or the local runner.
 import { q, withLease } from "./db.ts";
-import { processMemoryQueue } from "./memory.ts";
+import { DUE_QUEUED, processMemoryQueue } from "./memory.ts";
 import { matchState, timeline } from "./feed.ts";
 import { computeDrama } from "./drama.ts";
 import { alertKeyboard, askText, edit, ratingKeyboard, resultText, reveal, send, sendBrief, tg } from "./telegram.ts";
@@ -41,7 +41,7 @@ export async function nextWorkAt(now: Date, live = true): Promise<number | null>
   const t = now.getTime();
   const iso = now.toISOString();
   const [busy] = await q<any>(
-    `select (select count(*)::int from memory_jobs where (status = 'queued' and attempts < 6) or status = 'pending') as mem,
+    `select (select count(*)::int from memory_jobs where (${DUE_QUEUED}) or status = 'pending') as mem,
             (select count(*)::int from picks where kickoff < $1::timestamptz - interval '110 minutes' and kickoff > $1::timestamptz - interval '4 days'
                and (settled_at is null or (status = 'finished' and asked_at is null and rating is null))) as settle`,
     [iso],
@@ -126,7 +126,7 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
       // same write that records the ask, after Telegram accepted it, so a failed send is retried on the next pass.
       const due = await q<any>(
         `select p.*, u.chat_id, u.show_scores from picks p join users u on u.id = p.user_id
-         where p.kickoff < now() - interval '110 minutes' and p.kickoff > now() - interval '4 days'
+         where u.active and p.kickoff < now() - interval '110 minutes' and p.kickoff > now() - interval '4 days'
            and (p.settled_at is null or (p.status = 'finished' and p.asked_at is null and p.rating is null))
          order by p.kickoff asc limit 12`,
       );
@@ -175,10 +175,12 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
 
     await guard("reminders", async () => {
       for (const p of await dueReminders()) {
-        const mins = Math.max(1, Math.round((Date.parse(p.kickoff) - now.getTime()) / 60_000));
-        await send(Number(p.chat_id), `⏰ Kicks off in ${mins} min (${fmtLocalTime(new Date(p.kickoff).toISOString(), p.tz)}): <b>${escHtml(p.home)} v ${escHtml(p.away)}</b> · ${escHtml(p.competition)}`);
-        await q(`update picks set reminded_at = now() where id = $1`, [p.id]);
-        rep.reminders++;
+        await guard(`reminder ${p.id}`, async () => {
+          const mins = Math.max(1, Math.round((Date.parse(p.kickoff) - now.getTime()) / 60_000));
+          await send(Number(p.chat_id), `⏰ Kicks off in ${mins} min (${fmtLocalTime(new Date(p.kickoff).toISOString(), p.tz)}): <b>${escHtml(p.home)} v ${escHtml(p.away)}</b> · ${escHtml(p.competition)}`);
+          await q(`update picks set reminded_at = now() where id = $1`, [p.id]);
+          rep.reminders++;
+        });
       }
     });
 
@@ -199,7 +201,10 @@ ${escHtml(a.why)}${u.show_scores ? "" : " (Score hidden.)"}`;
               [u.id, a.f.matchId, a.kind, a.f.competition, a.f.home, a.f.away, a.f.compId, a.f.minute, a.f.homeScore, a.f.awayScore, JSON.stringify(a.signals)],
             );
             if (!inserted.length) continue;
-            const msg = await send(Number(u.chat_id), text, alertKeyboard(a.f.matchId));
+            const msg = await send(Number(u.chat_id), text, alertKeyboard(a.f.matchId)).catch(async (e) => {
+              await q(`delete from alerts where user_id = $1 and match_id = $2 and message_id is null`, [u.id, a.f.matchId]);
+              throw e;
+            });
             await q(`update alerts set message_id = $3 where user_id = $1 and match_id = $2`, [u.id, a.f.matchId, msg.message_id]);
             rep.alerts++;
           }
@@ -244,7 +249,8 @@ ${escHtml(a.why)}${u.show_scores ? "" : " (Score hidden.)"}`;
 async function notifyStored(chatId: number, messageId: number, blobId: string) {
   // Re-render the rating/teach message with the stored proof appended.
   const short = `${blobId.slice(0, 6)}…${blobId.slice(-4)}`;
-  const job = await q<any>(`select p.* from picks p where p.ask_message_id = $1 limit 1`, [messageId]);
+  // Telegram message ids are unique only within one chat, so match the chat too.
+  const job = await q<any>(`select p.* from picks p join users u on u.id = p.user_id where p.ask_message_id = $1 and u.chat_id = $2 limit 1`, [messageId, chatId]);
   if (job[0]) {
     const p = job[0];
     const lock = await lockLine(p).catch(() => "");
