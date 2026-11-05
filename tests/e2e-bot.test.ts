@@ -186,9 +186,14 @@ describe("a viewer's first evening, end to end", () => {
         { type: 2, minute: 66 },
       ];
     }
+    world.failOnce.push(/Full time/); // the first ask hits a Bot API error
     const m = world.mark();
     await L.tick.tick();
+    expect(world.failOnce).toEqual([]); // the failure did happen
+    await L.tick.tick(); // and goes out on the next pass instead of being lost
     const asks = world.since(m, "sendMessage").filter((c) => /Full time/.test(c.body.text));
+    const lost = await L.db.q(`select id from picks where user_id = $1 and settled_at is not null and asked_at is null and status = 'finished' and rating is null`, [U.id]);
+    expect(lost).toEqual([]);
     const hasLiga = picks.some((p: any) => p.comp_id === LIGA.compId);
     const settledNow = picks.filter((p: any) => p.comp_id !== LIGA.compId).length + (hasLiga ? 1 : 0);
     expect(asks.length).toBe(settledNow);

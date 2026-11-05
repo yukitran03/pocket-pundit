@@ -35,6 +35,8 @@ export function createWorld() {
   const forms = new Map<string, { MatchesPlayed: number; Wins: number; Draws: number; Losses: number; GoalsScored: number; GoalsAgainst: number }>();
   const tg: TgCall[] = [];
   let msgId = 1000;
+  /** Telegram sends whose text matches one of these fail once (simulates a transient Bot API error). */
+  const failOnce: RegExp[] = [];
 
   const toApi = (m: FakeMatch) => ({
     IdMatch: m.id,
@@ -57,6 +59,11 @@ export function createWorld() {
     if (url.startsWith("https://api.telegram.org/")) {
       const method = url.split("/").pop()!;
       const body = init?.body ? JSON.parse(String(init.body)) : {};
+      const i = failOnce.findIndex((re) => re.test(String(body.text ?? "")));
+      if (i >= 0) {
+        failOnce.splice(i, 1);
+        return Response.json({ ok: false, error_code: 502, description: "Bad Gateway" });
+      }
       tg.push({ method, body });
       const result = method === "sendMessage" || method === "sendPhoto" ? { message_id: ++msgId, chat: { id: body.chat_id } } : true;
       return Response.json({ ok: true, result });
@@ -104,7 +111,7 @@ export function createWorld() {
   const since = (mark: number, method?: string) => tg.slice(mark).filter((c) => !method || c.method === method);
   const texts = (mark: number) => since(mark).map((c) => String(c.body.text ?? c.body.caption ?? "")).join("\n---\n");
 
-  return { matches, forms, tg, add, fakeFetch, since, texts, mark: () => tg.length };
+  return { matches, forms, tg, add, fakeFetch, since, texts, failOnce, mark: () => tg.length };
 }
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");

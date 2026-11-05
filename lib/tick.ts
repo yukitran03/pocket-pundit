@@ -42,8 +42,8 @@ export async function nextWorkAt(now: Date, live = true): Promise<number | null>
   const iso = now.toISOString();
   const [busy] = await q<any>(
     `select (select count(*)::int from memory_jobs where (status = 'queued' and attempts < 6) or status = 'pending') as mem,
-            (select count(*)::int from picks where settled_at is null and kickoff < $1::timestamptz - interval '110 minutes'
-               and kickoff > $1::timestamptz - interval '4 days') as settle`,
+            (select count(*)::int from picks where kickoff < $1::timestamptz - interval '110 minutes' and kickoff > $1::timestamptz - interval '4 days'
+               and (settled_at is null or (status = 'finished' and asked_at is null and rating is null))) as settle`,
     [iso],
   );
   if (busy?.mem || busy?.settle) return t;
@@ -122,13 +122,23 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
     });
 
     await guard("settle", async () => {
+      // Unsettled picks past full time, plus settled ones whose ask never went out. A pick is marked settled in the
+      // same write that records the ask, after Telegram accepted it, so a failed send is retried on the next pass.
       const due = await q<any>(
         `select p.*, u.chat_id, u.show_scores from picks p join users u on u.id = p.user_id
-         where p.settled_at is null and p.kickoff < now() - interval '110 minutes' and p.kickoff > now() - interval '4 days'
+         where p.kickoff < now() - interval '110 minutes' and p.kickoff > now() - interval '4 days'
+           and (p.settled_at is null or (p.status = 'finished' and p.asked_at is null and p.rating is null))
          order by p.kickoff asc limit 12`,
       );
+      const asked = async (p: any, msg: any) =>
+        q(`update picks set status='finished', settled_at=coalesce(settled_at, now()), asked_at=now(), ask_message_id=$2 where id=$1`, [p.id, msg.message_id]);
       for (const p of due) {
         await guard(`settle ${p.id}`, async () => {
+          if (p.settled_at) {
+            await asked(p, await send(Number(p.chat_id), askText(p, !!p.show_scores), ratingKeyboard(p.id)));
+            rep.asked++;
+            return;
+          }
           const st = await matchState(p.match_id);
           const kickMs = Date.parse(p.kickoff);
           const hasResult = !!st && st.status === 0 && st.homeScore !== null && st.awayScore !== null;
@@ -136,10 +146,8 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
           // rating (and what it teaches) isn't lost; there is just no score or drama to attach.
           const noResult = !hasResult && ((!!st && (st.status === 1 || st.status === 0) && kickMs < now.getTime() - 150 * 60_000) || (!st && kickMs < now.getTime() - 6 * 3600_000));
           if (noResult) {
-            await q(`update picks set status='finished', settled_at=now() where id=$1`, [p.id]);
+            await asked(p, await send(Number(p.chat_id), askText({ ...p, home_score: null, away_score: null, drama: null }, false), ratingKeyboard(p.id)));
             rep.settled++;
-            const msg = await send(Number(p.chat_id), askText({ ...p, home_score: null, away_score: null, drama: null }, false), ratingKeyboard(p.id));
-            await q(`update picks set asked_at=now(), ask_message_id=$2 where id=$1`, [p.id, msg.message_id]);
             rep.asked++;
             return;
           }
@@ -147,11 +155,16 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
           if (hasResult) {
             const ev = await timeline(p.match_id);
             const drama = computeDrama(ev, st.homeScore, st.awayScore);
-            await q(`update picks set status='finished', home_score=$2, away_score=$3, drama=$4::jsonb, settled_at=now() where id=$1`, [p.id, st.homeScore, st.awayScore, JSON.stringify(drama)]);
-            rep.settled++;
             const fresh = { ...p, home_score: st.homeScore, away_score: st.awayScore, drama };
             const msg = await send(Number(p.chat_id), askText(fresh, !!p.show_scores), ratingKeyboard(p.id));
-            await q(`update picks set asked_at=now(), ask_message_id=$2 where id=$1`, [p.id, msg.message_id]);
+            await q(`update picks set status='finished', home_score=$3, away_score=$4, drama=$5::jsonb, settled_at=now(), asked_at=now(), ask_message_id=$2 where id=$1`, [
+              p.id,
+              msg.message_id,
+              st.homeScore,
+              st.awayScore,
+              JSON.stringify(drama),
+            ]);
+            rep.settled++;
             rep.asked++;
           } else if (st.status !== 1 && st.status !== 3 && Date.parse(p.kickoff) < now.getTime() - 6 * 3600_000) {
             await q(`update picks set status='void', settled_at=now() where id=$1`, [p.id]);
