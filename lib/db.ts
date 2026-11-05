@@ -170,9 +170,16 @@ export async function cacheSet(k: string, v: unknown, ttlSeconds: number | null)
 export async function cached<T>(k: string, ttlSeconds: number, fn: () => Promise<T>): Promise<T> {
   const hit = await cacheGet<T>(k);
   if (hit !== null) return hit;
-  const v = await fn();
-  await cacheSet(k, v, ttlSeconds);
-  return v;
+  try {
+    const v = await fn();
+    await cacheSet(k, v, ttlSeconds);
+    return v;
+  } catch (e) {
+    // Upstream down (the football feed has outages): an expired copy beats an error. Expired rows are kept.
+    const stale = await one<{ v: T }>(`select v from kv where k = $1`, [k]).catch(() => null);
+    if (stale) return stale.v;
+    throw e;
+  }
 }
 
 // Best-effort lease so overlapping ticks (cron + webhook) don't double-send.

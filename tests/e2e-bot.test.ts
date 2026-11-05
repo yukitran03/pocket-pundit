@@ -374,6 +374,30 @@ describe("commands", () => {
     expect(v.taste.competitions.some((c: any) => c.key === `comp:${EPL.compId}` && c.weight > 0)).toBe(true);
   });
 
+  it("rides out a football feed outage on the last good copy", async () => {
+    const feed = await import("../lib/feed.ts");
+    const { tonightView } = await import("../lib/tonight.ts");
+    const from = new Date();
+    const to = new Date(from.getTime() + 8 * H);
+    const fresh = (await feed.fixturesBetween(from, to)).map((f) => f.matchId).sort();
+    await L.tick.tick(); // warms the public board
+    const board = await L.db.one(`select v from kv where k = 'view:tonight:last:plain'`);
+    expect(board?.v?.updatedAt).toBeTruthy();
+    try {
+      world.feed.down = true;
+      // Expired calendar entries are served instead of an error.
+      await L.db.q(`update kv set expires_at = now() - interval '1 second' where k like 'feed:cal:%'`);
+      expect((await feed.fixturesBetween(from, to)).map((f) => f.matchId).sort()).toEqual(fresh);
+      // With nothing cached at all, the board falls back to the last one built.
+      await L.db.q(`delete from kv where k like 'feed:cal:%' or k like 'view:tonight:v2:%'`);
+      const v = await tonightView("UTC", new Date());
+      expect(v.updatedAt).toBe(board.v.updatedAt);
+    } finally {
+      world.feed.down = false;
+      feed.resetFeedBreaker();
+    }
+  });
+
   it("no em dashes anywhere the bot spoke", () => {
     const all = world.tg.map((c) => String(c.body.text ?? c.body.caption ?? "")).join("\n");
     expect(all).not.toMatch(/—/);

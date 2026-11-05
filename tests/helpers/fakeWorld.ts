@@ -37,6 +37,8 @@ export function createWorld() {
   let msgId = 1000;
   /** Telegram sends whose text matches one of these fail once (simulates a transient Bot API error). */
   const failOnce: RegExp[] = [];
+  /** Set `feed.down` to make every football API call answer 503 (a feed outage). */
+  const feed = { down: false };
 
   const toApi = (m: FakeMatch) => ({
     IdMatch: m.id,
@@ -69,6 +71,7 @@ export function createWorld() {
       return Response.json({ ok: true, result });
     }
     if (url.startsWith("https://feed.test/api/v3/")) {
+      if (feed.down) return new Response("Service Unavailable", { status: 503 });
       const u = new URL(url);
       const path = u.pathname.replace("/api/v3/", "");
       if (path === "calendar/matches") {
@@ -111,7 +114,7 @@ export function createWorld() {
   const since = (mark: number, method?: string) => tg.slice(mark).filter((c) => !method || c.method === method);
   const texts = (mark: number) => since(mark).map((c) => String(c.body.text ?? c.body.caption ?? "")).join("\n---\n");
 
-  return { matches, forms, tg, add, fakeFetch, since, texts, failOnce, mark: () => tg.length };
+  return { matches, forms, tg, add, fakeFetch, since, texts, failOnce, feed, mark: () => tg.length };
 }
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");

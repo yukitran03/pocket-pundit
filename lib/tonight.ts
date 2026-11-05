@@ -1,7 +1,7 @@
 // Public "tonight" board: the same agent with memory OFF, for anyone (no login, no memory).
 // Upcoming/live matches in the next 12 hours, ranked; plus last night's best matches, spoiler-free.
 import type { ReplayMatch, TonightMatch, TonightResponse } from "./contract.ts";
-import { cached } from "./db.ts";
+import { cacheGet, cacheSet, cached, one } from "./db.ts";
 import { env } from "./env.ts";
 import { fixturesBetween, liveNow, teamForm, timeline, type Fixture, type TeamForm } from "./feed.ts";
 import { computeDrama } from "./drama.ts";
@@ -22,12 +22,26 @@ const VIBE: Record<string, string> = {
  */
 export async function tonightView(tz: string, now = new Date()): Promise<TonightResponse> {
   const bucket = Math.floor(now.getTime() / 600_000);
-  const v = await cached(`view:tonight:v2:${env.officialCrests() ? "crests" : "plain"}:${bucket}`, 900, async () => {
-    const [tonight, scanned] = await upcoming(now);
-    const replays = await lastNight(now).catch(() => [] as ReplayMatch[]);
-    return { scanned, tonight, replays, updatedAt: new Date().toISOString() };
-  });
-  return { tz, ...v };
+  const variant = env.officialCrests() ? "crests" : "plain";
+  const last = `view:tonight:last:${variant}`;
+  try {
+    const v = await cached(`view:tonight:v2:${variant}:${bucket}`, 900, async () => {
+      const [tonight, scanned] = await upcoming(now);
+      const replays = await lastNight(now).catch(() => [] as ReplayMatch[]);
+      const fresh = { scanned, tonight, replays, updatedAt: new Date().toISOString() };
+      await cacheSet(last, fresh, 2 * 86_400).catch(() => {});
+      return fresh;
+    });
+    return { tz, ...v };
+  } catch (e) {
+    // Feed outage: show the last board we built, minus matches that must be over by now.
+    const v =
+      (await cacheGet<Omit<TonightResponse, "tz">>(last)) ??
+      (await one<{ v: Omit<TonightResponse, "tz"> }>(`select v from kv where k like $1 order by k desc limit 1`, [`view:tonight:v2:${variant}:%`]))?.v;
+    if (!v) throw e;
+    const tonight = v.tonight.filter((m) => Date.parse(m.kickoff) > now.getTime() - 2 * 3600_000);
+    return { tz, ...v, tonight };
+  }
 }
 
 /** Short, factual reasons for a neutral fan. The row already shows competition and kick-off, so don't repeat them. */

@@ -47,16 +47,31 @@ const desc = (arr: any): string => (Array.isArray(arr) && arr[0]?.Description) |
 const picture = (tpl: unknown): string | null =>
   typeof tpl === "string" && tpl.startsWith(BASE + "/picture/") ? tpl.replace("{format}", "sq").replace("{size}", "3") : null;
 
+// When the feed times out or answers 5xx, fail fast for a little while instead of waiting out every timeout;
+// callers fall back to their last cached copy (see `cached`).
+let downUntil = 0;
+const COOL_OFF_MS = 90_000;
+
 async function getJson(path: string, timeoutMs = 15000): Promise<any> {
+  if (Date.now() < downUntil) throw new Error("football api unavailable (cooling off)");
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const r = await fetch(`${BASE}/${path}`, { signal: ctrl.signal, headers: { accept: "application/json" } });
+    if (r.status >= 500) downUntil = Date.now() + COOL_OFF_MS;
     if (!r.ok) throw new Error(`football api ${r.status} for ${path.split("?")[0]}`);
     return await r.json();
+  } catch (e: any) {
+    if (e?.name === "AbortError" || e?.name === "TypeError") downUntil = Date.now() + COOL_OFF_MS;
+    throw e;
   } finally {
     clearTimeout(t);
   }
+}
+
+/** Test hook: forget a previous outage. */
+export function resetFeedBreaker() {
+  downUntil = 0;
 }
 
 function toFixture(m: any): Fixture | null {
@@ -91,9 +106,11 @@ const iso = (t: number) => new Date(t).toISOString().slice(0, 19) + "Z";
 export async function fixturesBetween(from: Date, to: Date): Promise<Fixture[]> {
   const out = new Map<string, Fixture>();
   const step = 6 * HOUR;
-  // The calendar route answers `null` for some off-hour bounds (e.g. 12:45), so query whole hours and filter after.
-  const start = Math.floor(from.getTime() / HOUR) * HOUR;
-  const end = Math.ceil(to.getTime() / HOUR) * HOUR;
+  // The calendar route answers `null` for some off-hour bounds (e.g. 12:45), so query fixed 6-hour UTC windows
+  // (00, 06, 12, 18) and filter after. Fixed windows also mean every caller shares the same cache entries, so a
+  // feed outage can fall back to the last copy (see `cached`).
+  const start = Math.floor(from.getTime() / step) * step;
+  const end = Math.ceil(to.getTime() / step) * step;
   for (let a = start; a < end; a += step) {
     const b = Math.min(a + step, end);
     const fromIso = iso(a);
