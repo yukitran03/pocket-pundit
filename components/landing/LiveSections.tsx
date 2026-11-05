@@ -27,10 +27,13 @@ export function LiveNumbers() {
     { label: "Picks rated", value: d?.picksRated, note: d && d.picksSent ? `${Math.round((d.picksRated / d.picksSent) * 100)}% of picks` : "one tap each" },
     { label: "Memories saved", value: d?.memoriesStored, note: "on Walrus mainnet" },
     { label: "Fixtures checked", value: d?.matchesScanned, note: "across every brief" },
+    // Ranked the morning after: every finished match in the viewer's window by drama, picks locked beforehand.
+    { label: "Night's best caught", value: d ? d.nights?.caught ?? 0 : undefined, note: d?.nights?.nights ? `of ${fmtInt(d.nights.nights)} ${d.nights.nights === 1 ? "night" : "nights"} ranked after full time` : "ranked after full time" },
+    { label: "Top-3 nights", value: d ? d.nights?.top3Nights ?? 0 : undefined, note: "a top-3 match of the night was a pick" },
   ];
 
   return (
-    <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius-card)] bg-[var(--line)] lg:grid-cols-4" aria-busy={s.status === "loading"}>
+    <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius-card)] bg-[var(--line)] lg:grid-cols-3" aria-busy={s.status === "loading"}>
       {tiles.map((t) => (
         <div key={t.label} className="flex flex-col bg-ink-1 p-5 md:p-6">
           <dt className="text-sm font-medium text-chalk">{t.label}</dt>

@@ -23,6 +23,7 @@ This page documents the format, so the viewer (or another app they authorise) ca
 | `signal=<name>` | What happened, or what the viewer asked for: `high-scoring`, `late-goals`, `lead-changes`, `comeback`, `tense`, `goalless`, `one-sided`, `red-card`, `shot-fest` |
 | `kick=<bucket>` | Kick-off time in the viewer's zone: `day`, `evening` (17:00 and later) or `late` (before 06:00) |
 | `kind=brief` | A locked brief. It carries no taste weight |
+| `kind=night` | A night report. It carries no taste weight |
 
 Examples:
 
@@ -34,11 +35,13 @@ Examples:
 [limit] 2026-11-04 · no matches after 2am on weekdays tags: verdict=-0.80 kick=late
 
 [brief] 2026-11-04 · Tonight's picks, locked before kick-off: A v B (Wed 19:15); C v D (Wed 20:45); E v F (Wed 22:00). Memory-off pick sealed: commit 3f9a1c2b7d4e5f60. tags: kind=brief
+
+[night] 2026-11-04 · Night report for my 19:00 to 02:00 window: 7 of 25 matches finished with full data. Best: A 3–2 B (Premier League), drama 87, one of my picks. My picks ranked #1, #2 and #5. tags: kind=night
 ```
 
 ## From memories to taste
 
-For each tagged memory (not `lesson`, `system` or `brief`, and with a non-zero verdict), every key gets `verdict × decay`:
+For each tagged memory (not `lesson`, `system`, `brief` or `night`, and with a non-zero verdict), every key gets `verdict × decay`:
 
 - `decay = 0.5 ^ (age_days / 21)`, a 21-day half-life;
 - team keys are scaled by 0.6.
@@ -54,6 +57,10 @@ commit = sha256("<date>|control=<matchId>|<salt>")[0..16]
 ```
 
 After the last full time, the bot reveals `salt` and the control's match id. Anyone can then recompute the commit, and Tatum's Sui gateway shows when the blob was certified on Sui.
+
+## Night reports
+
+Once a watch window has closed and results have had 150 minutes to land, every match in it that finished with a score is ranked by drama from the public timeline. Futsal and beach soccer are left out because they score differently. Ties share a rank. The `night` memory records the best match and where the picks landed, without saying which pick ran with memory off. The picks were locked in a `brief` memory before kick-off, so the report can be checked against that lock. The reference implementation is `rankNight` in [lib/night.ts](../lib/night.ts).
 
 ## Taking it with you
 

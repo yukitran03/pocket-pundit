@@ -13,6 +13,8 @@ export const KIND_META: Record<MemoryKind, { label: string; color: string; shape
   // Not taste: tonight's three picks, written before kick-off (the memory-off pick is a sealed sha256 commit).
   // Parchment, much lighter than every taste kind, and always paired with its own hexagonal "seal" shape.
   brief: { label: "Locked brief", color: "#e2d6b4", shape: "seal", blurb: "Tonight's picks, sealed before kick-off" },
+  // Not taste either: the next morning, every match in the window ranked by what happened, and where the picks landed.
+  night: { label: "Night report", color: "#6cb4ee", shape: "seal", blurb: "Every match in your window, ranked after the fact" },
 };
 
 export const PRIMARY_KINDS: MemoryKind[] = ["rating", "lesson", "preference", "limit"];

@@ -147,6 +147,13 @@ const SCHEMA = [
     sent_at timestamptz not null default now(),
     primary key (user_id, match_id)
   )`,
+  `create table if not exists nights (
+    user_id bigint not null,
+    brief_date text not null,
+    report jsonb not null,
+    created_at timestamptz not null default now(),
+    primary key (user_id, brief_date)
+  )`,
 ];
 
 // A cold start used to replay every statement above (one round trip each) before its first query. Now one read

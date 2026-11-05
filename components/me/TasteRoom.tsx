@@ -83,7 +83,7 @@ export function TasteRoom({
           )}
         </div>
         <ul className="grid grid-cols-2 gap-x-5 gap-y-1.5 text-xs text-chalk-2 sm:flex sm:flex-wrap lg:max-w-[18rem] lg:justify-end" aria-label="Legend">
-          {[...PRIMARY_KINDS, ...(items.some((i) => i.row.kind === "brief") ? (["brief"] as const) : [])].map((k) => (
+          {[...PRIMARY_KINDS, ...(["brief", "night"] as const).filter((x) => items.some((i) => i.row.kind === x))].map((k) => (
             <li key={k} className="inline-flex items-center gap-1.5"><ShapeGlyph shape={KIND_META[k].shape} color={KIND_META[k].color} /> {KIND_META[k].label}</li>
           ))}
           <li className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-full bg-flare shadow-[0_0_8px_2px_rgb(240_83_28/.6)]" /> Cited tonight</li>

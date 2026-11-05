@@ -5,7 +5,7 @@ import { BRAND } from "./brand.ts";
 export type Arm = "memory" | "control";
 export type Rating = "loved" | "fine" | "bailed" | "skipped";
 export type PickStatus = "upcoming" | "live" | "finished";
-export type MemoryKind = "system" | "preference" | "rating" | "lesson" | "limit" | "taste" | "brief";
+export type MemoryKind = "system" | "preference" | "rating" | "lesson" | "limit" | "taste" | "brief" | "night";
 export type WriteStatus = "queued" | "pending" | "stored" | "failed";
 
 export interface Drama {
@@ -168,6 +168,9 @@ export interface StatsResponse {
   picksRated: number;
   matchesScanned: number; // fixtures considered across all briefs
   ab: { memory: ArmStats; control: ArmStats };
+  // Night reports: every finished match in a viewer's window ranked by drama after the fact, and where the picks
+  // (locked on Walrus before kick-off) landed. byArm counts only nights whose picks have all been answered.
+  nights?: { nights: number; caught: number; top3Nights: number; byArm: { nights: number; memory: number; control: number } };
   // Anonymised and spoiler-free. headline/detail are ready to show; text is the raw memory sentence (no tags).
   recentLessons: { text: string; createdAt: string; blobId: string | null; kind?: "rating" | "lesson"; verdict?: Rating | null; headline?: string; detail?: string }[];
   updatedAt: string;

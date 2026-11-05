@@ -6,6 +6,7 @@ import { buildTaste, parseMemory, tasteToContract } from "./taste.ts";
 import { localParts, walruscan, suiscanObject, suiscanAccount, blobIdToU256, slug } from "./util.ts";
 import { chainInfo, memwalAccount, objectLastWrite, ownedBlobs, type ChainBlob } from "./tatum.ts";
 import { memwal } from "./memory.ts";
+import { nightStats } from "./night.ts";
 
 type Lock = { blobId: string | null; storedAt: string };
 
@@ -180,6 +181,7 @@ export async function statsView(): Promise<StatsResponse> {
       picksRated: picks.filter((p) => p.rating).length,
       matchesScanned: s.n,
       ab: { memory: armStats(picks.filter((p) => p.arm === "memory")), control: armStats(picks.filter((p) => p.arm === "control")) },
+      nights: await nightStats(),
       recentLessons: lessons.map((l) => ({ ...feedItem(l.text), createdAt: new Date(l.created_at).toISOString(), blobId: l.blob_id })),
       updatedAt: new Date().toISOString(),
     };

@@ -16,6 +16,7 @@ import { lockLine } from "./lock.ts";
 import { stillOwned } from "./own.ts";
 import { tonightView } from "./tonight.ts";
 import { coverageMap } from "./coverage.ts";
+import { runNights } from "./night.ts";
 
 export interface TickReport {
   memory: { submitted: number; stored: number; failed: number };
@@ -23,6 +24,7 @@ export interface TickReport {
   settled: number;
   asked: number;
   lessons: number;
+  nights: number;
   reminders: number;
   alerts: number;
   /** When the next pass has work (ISO), or null when nothing is due; the heartbeat paces itself on this. */
@@ -75,7 +77,7 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
     const t0 = Date.now();
     const errors: string[] = [];
     // `next` defaults to now (keep the 5-minute pace) in case planning fails.
-    const rep: TickReport = { memory: { submitted: 0, stored: 0, failed: 0 }, briefs: 0, settled: 0, asked: 0, lessons: 0, reminders: 0, alerts: 0, next: now.toISOString(), errors, ms: 0 };
+    const rep: TickReport = { memory: { submitted: 0, stored: 0, failed: 0 }, briefs: 0, settled: 0, asked: 0, lessons: 0, nights: 0, reminders: 0, alerts: 0, next: now.toISOString(), errors, ms: 0 };
     let liveCount = 1; // assume matches are live unless the feed says otherwise
     const guard = async (label: string, fn: () => Promise<void>) => {
       try {
@@ -228,6 +230,11 @@ ${escHtml(a.why)}${u.show_scores ? "" : " (Score hidden.)"}`;
           await q(`update users set last_lesson_date = $2 where id = $1`, [u.id, lp.date]);
         });
       }
+    });
+
+    // Night reports: once a window has closed, rank every match in it by what happened and place the picks.
+    await guard("nights", async () => {
+      rep.nights = await runNights(now);
     });
 
     // Keep the public Tonight board warm so the landing page never waits on a cold ranking.

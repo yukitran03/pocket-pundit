@@ -16,6 +16,7 @@ import { localParts, fmtLocalTime, isValidTz, slug } from "./util.ts";
 import type { Drama, Rating } from "./contract.ts";
 import { fixturesBetween } from "./feed.ts";
 import { missedLastNight } from "./extras.ts";
+import { dayBefore, ensureNight, nightLine, nightRecord } from "./night.ts";
 
 type Kb = { text: string; callback_data?: string; url?: string }[][];
 
@@ -130,7 +131,7 @@ async function leaguesKeyboard(userId: number): Promise<Kb> {
   return rows;
 }
 
-export function briefText(user: UserRow, b: BriefResult, dayIndex: number, missed?: { home: string; away: string; competition: string; drama: number } | null, duo?: DuoPick | null): string {
+export function briefText(user: UserRow, b: BriefResult, dayIndex: number, missed?: { home: string; away: string; competition: string; drama: number } | null, duo?: DuoPick | null, night?: string | null): string {
   // Scannable first (what, when, why in one line each); the how-it-works detail sits in a collapsed quote.
   const lines = [`<b>⚽ Tonight's picks</b> · day ${dayIndex}`, `${b.considered} fixtures checked for ${hh(user.window_start)} to ${hh(user.window_end)}`, ""];
   for (const p of [...b.picks].sort((a, c) => a.slot - c.slot)) {
@@ -140,8 +141,9 @@ export function briefText(user: UserRow, b: BriefResult, dayIndex: number, misse
   }
   if (!b.picks.length) lines.push("Nothing kicks off in your window tonight. I'll look again tomorrow.", "");
   if (duo) lines.push(`👥 Watch together with ${esc(duo.partnerName)}: <b>${esc(duo.home)} v ${esc(duo.away)}</b> · ${esc(duo.mineLocal)} (${esc(duo.theirsLocal)} for them)`);
-  if (missed) lines.push(`📼 Last night's best, for the highlights: <b>${esc(missed.home)} v ${esc(missed.away)}</b> · drama ${missed.drama}`);
-  if (duo || missed) lines.push("");
+  if (night) lines.push(night);
+  else if (missed) lines.push(`📼 Last night's best, for the highlights: <b>${esc(missed.home)} v ${esc(missed.away)}</b> · drama ${missed.drama}`);
+  if (duo || missed || night) lines.push("");
   const memory = b.memoriesUsed
     ? `🧠 Shaped by ${b.memoriesUsed} memories recalled from Walrus in ${(b.recallMs / 1000).toFixed(1)}s.`
     : b.recallOk
@@ -158,10 +160,14 @@ export function briefText(user: UserRow, b: BriefResult, dayIndex: number, misse
 export async function sendBrief(user: UserRow, now = new Date()) {
   const b = await buildBrief(user, now);
   await lockBrief(user, b).catch(() => null);
-  const missed = await missedLastNight(user, now).catch(() => null);
+  // Last night's report when there were picks to rank (computed here if the tick hasn't yet); otherwise the
+  // best match the viewer didn't have, for the highlights.
+  const lastNight = await ensureNight(user, dayBefore(b.briefDate), now).catch(() => null);
+  const night = lastNight ? nightLine(lastNight, await nightRecord(user.id).catch(() => null), !!(user as any).show_scores) : null;
+  const missed = night ? null : await missedLastNight(user, now).catch(() => null);
   const duo = await duoPick(user as any, now).catch(() => null);
   const days = Math.max(1, Math.floor((now.getTime() - new Date(user.created_at).getTime()) / 86_400_000) + 1);
-  await send(user.chat_id, briefText(user, b, days, missed, duo), [[{ text: "Why these picks?", url: dashboardUrl(user.id) }]]);
+  await send(user.chat_id, briefText(user, b, days, missed, duo, night), [[{ text: "Why these picks?", url: dashboardUrl(user.id) }]]);
   await q(`update users set last_brief_date = $2 where id = $1`, [user.id, b.briefDate]);
   return b;
 }
