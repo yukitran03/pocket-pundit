@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    return Response.json(await statsView(), { headers: { "cache-control": "public, s-maxage=60, stale-while-revalidate=300" } });
+    return Response.json(await statsView(), { headers: { "cache-control": "public, s-maxage=60, stale-while-revalidate=86400" } });
   } catch {
     return Response.json({ error: "stats unavailable" }, { status: 503 });
   }

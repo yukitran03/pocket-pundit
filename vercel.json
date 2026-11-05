@@ -11,5 +11,6 @@
       "experimentalTriggers": [{ "type": "queue/v2beta", "topic": "pundit-heartbeat", "retryAfterSeconds": 30 }]
     }
   },
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "regions": ["sin1"]
 }

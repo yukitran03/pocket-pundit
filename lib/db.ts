@@ -149,8 +149,22 @@ const SCHEMA = [
   )`,
 ];
 
+// A cold start used to replay every statement above (one round trip each) before its first query. Now one read
+// tells whether this exact schema is already in place; any change to SCHEMA changes the version and replays it.
+const SCHEMA_VERSION = (() => {
+  let h = 0x811c9dc5;
+  for (const ch of SCHEMA.join(";")) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0;
+  return `${SCHEMA.length}:${h.toString(16)}`;
+})();
+
 async function migrate(run: Exec) {
+  const have = await run(`select v from kv where k = 'schema:version'`, []).catch(() => [] as Row[]);
+  if (have[0]?.v === SCHEMA_VERSION) return;
   for (const stmt of SCHEMA) await run(stmt, []);
+  await run(
+    `insert into kv (k, v, expires_at) values ('schema:version', $1::jsonb, null) on conflict (k) do update set v = excluded.v, expires_at = null`,
+    [JSON.stringify(SCHEMA_VERSION)],
+  );
 }
 
 // --- small key/value cache with TTL, stored in Postgres so it survives serverless cold starts ---
