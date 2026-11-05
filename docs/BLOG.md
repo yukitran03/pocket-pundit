@@ -79,7 +79,7 @@ Our server then reads the account through Tatum, confirms the key is there, and 
 ## Things we had to get right
 
 - **The data feed doesn't settle everything.** The public football API we use fills in results and timelines for some competitions (Premier League, Ligue 1, MLS, J1, V.League) and leaves others marked "scheduled" forever. We measure coverage per competition over the last week and prefer competitions that get settled, on both arms of the A/B so it stays fair. For a match without a result, the bot still asks how it was.
-- **Scheduling on a hobby plan.** Vercel Hobby crons run once a day, and GitHub's scheduler skipped hours. The heartbeat now runs on Vercel Queues: every pass schedules the next one five minutes out, and the chain follows each new deployment.
+- **Scheduling on a hobby plan.** Vercel Hobby crons run once a day, and GitHub's scheduler skipped hours. The heartbeat now runs on Vercel Queues: every pass schedules the next one, five minutes out while matches, reminders or memory writes are in motion and on the half hour when nothing is due, so the free database can scale to zero between beats. The chain follows each new deployment.
 - **Testing a bot that lives on mainnet.** An end-to-end suite drives the whole bot through a fake football world, a fake Telegram and Walrus Memory's in-memory mock: onboarding, briefs, locks, reminders, live alerts, ratings, lessons, day two, every command, `/duo`, `/export` and `/own`. It found four real bugs before users did.
 
 ## Honest limits

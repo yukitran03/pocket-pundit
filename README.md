@@ -36,7 +36,7 @@ Memory tunes every one of those: the leagues you enjoy, the styles you love or b
 
 ## Architecture
 
-Read left to right: who triggers work, the Vercel routes, the agent core, and the mainnet services it writes to and reads from. The heartbeat is a Vercel Queues message that schedules the next one five minutes out (`/api/queues/heartbeat`), with a daily Vercel cron and an hourly GitHub Actions run as backups.
+Read left to right: who triggers work, the Vercel routes, the agent core, and the mainnet services it writes to and reads from. The heartbeat is a Vercel Queues message that schedules the next one (`/api/queues/heartbeat`): five minutes out while work is in motion, on the half hour when idle so the database can sleep, with a daily Vercel cron and an hourly GitHub Actions run as backups.
 
 ```mermaid
 flowchart LR
@@ -51,7 +51,7 @@ flowchart LR
     TG["💬 Telegram bot<br/>picks · ratings · /ask · /duo"]:::user
     WEB["🖥 Web<br/>/ · /me · /proof · /own"]:::user
     CAL["📅 Calendar apps<br/>subscribed feed"]:::user
-    CRON["⏱ Vercel Queues heartbeat<br/>every 5 min, self-scheduling"]:::app
+    CRON["⏱ Vercel Queues heartbeat<br/>5 min busy, 30 min idle, self-scheduling"]:::app
   end
 
   subgraph VER["② Vercel · Next.js 16"]
