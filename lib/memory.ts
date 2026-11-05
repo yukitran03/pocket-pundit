@@ -167,7 +167,8 @@ export async function recallTaste(userId: number, namespace: string): Promise<{ 
   ];
   const merged = new Map<string, ParsedMemory>();
   let ok = true;
-  for (const qq of queries) {
+  // Both queries at once (well inside the relayer's per-key limit): the brief waits for one round trip, not two.
+  const runs = queries.map(async (qq) => {
     const t = Date.now();
     try {
       let res = await mw.recall({ query: qq.query, namespace, limit: qq.limit, sort: qq.sort, timeoutMs: 20_000 });
@@ -181,7 +182,8 @@ export async function recallTaste(userId: number, namespace: string): Promise<{ 
       ok = false;
       await q(`insert into recall_events (user_id, purpose, query, namespace, blob_ids, latency_ms, ok) values ($1,'picks',$2,$3,'[]'::jsonb,$4,false)`, [userId, qq.query, namespace, Date.now() - t]);
     }
-  }
+  });
+  await Promise.all(runs);
   return { memories: [...merged.values()], ok, latencyMs: Date.now() - t0 };
 }
 
