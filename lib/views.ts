@@ -6,7 +6,7 @@ import { buildTaste, parseMemory, tasteToContract } from "./taste.ts";
 import { localParts, walruscan, suiscanObject, suiscanAccount, blobIdToU256, slug } from "./util.ts";
 import { chainInfo, memwalAccount, objectLastWrite, ownedBlobs, type ChainBlob } from "./tatum.ts";
 import { memwal } from "./memory.ts";
-import { nightStats } from "./night.ts";
+import { formLabels, nightStats } from "./night.ts";
 
 type Lock = { blobId: string | null; storedAt: string };
 
@@ -105,6 +105,8 @@ export async function meView(userId: number): Promise<MeResponse | null> {
     labels.set(`team:${slug(p.away)}`, p.away);
   }
   for (const [id, label] of Object.entries(KNOWN_COMPS)) if (!labels.has(`comp:${id}`)) labels.set(`comp:${id}`, label);
+  // League form covers competitions the viewer never had as a pick; the night reports carry their names.
+  for (const [id, label] of await formLabels(userId)) if (!labels.has(`comp:${id}`)) labels.set(`comp:${id}`, label);
   const dayIndex = Math.max(1, Math.floor((Date.now() - new Date(u.created_at).getTime()) / 86_400_000) + 1);
   return {
     user: { name: u.name, tz: u.tz, briefHour: u.brief_hour, windowStart: u.window_start, windowEnd: u.window_end, namespace: u.namespace, joinedAt: new Date(u.created_at).toISOString(), dayIndex },

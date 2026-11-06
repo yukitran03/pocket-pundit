@@ -10,7 +10,7 @@ This page documents the format, so the viewer (or another app they authorise) ca
 [<kind>] <YYYY-MM-DD> · <human sentence> tags: <key>=<value> <key>=<value> …
 ```
 
-- `kind` is one of `rating`, `preference`, `limit`, `lesson`, `brief` or `system`.
+- `kind` is one of `rating`, `preference`, `limit`, `lesson`, `brief`, `night`, `form` or `system`.
 - The date is the viewer's local date when the memory was written.
 - The sentence is meant for people. Recall returns it as is.
 - Everything after ` tags: ` is meant for machines. Unknown keys must be ignored.
@@ -24,6 +24,7 @@ This page documents the format, so the viewer (or another app they authorise) ca
 | `kick=<bucket>` | Kick-off time in the viewer's zone: `day`, `evening` (17:00 and later) or `late` (before 06:00) |
 | `kind=brief` | A locked brief. It carries no taste weight |
 | `kind=night` | A night report. It carries no taste weight |
+| `cal=<id>:<-1..1>` | League form (`form` memories only): how competition `<id>` did against the rest of one night in the viewer's window |
 
 Examples:
 
@@ -37,6 +38,8 @@ Examples:
 [brief] 2026-11-04 · Tonight's picks, locked before kick-off: A v B (Wed 19:15); C v D (Wed 20:45); E v F (Wed 22:00). Memory-off pick sealed: commit 3f9a1c2b7d4e5f60. tags: kind=brief
 
 [night] 2026-11-04 · Night report for my 19:00 to 02:00 window: 7 of 25 matches finished with full data. Best: A 3–2 B (Premier League), drama 87, one of my picks. My picks ranked #1, #2 and #5. tags: kind=night
+
+[form] 2026-11-04 · League form in my 19:00 to 02:00 window, from 7 finished matches averaging drama 61: Indian Super League 87 (above); Cup 24 (below). tags: kind=form cal=2000000072:+0.33 cal=2000000101:-0.46
 ```
 
 ## From memories to taste
@@ -45,6 +48,8 @@ For each tagged memory (not `lesson`, `system`, `brief` or `night`, and with a n
 
 - `decay = 0.5 ^ (age_days / 21)`, a 21-day half-life;
 - team keys are scaled by 0.6.
+
+A `form` memory has no verdict. Each `cal=<id>:<value>` adds `value × decay` to the key `cal:<id>` instead.
 
 Each key's weight is `tanh(sum / 1.5)`, which falls in -1 to 1. The reference implementation is `parseMemory` and `buildTaste` in [lib/taste.ts](../lib/taste.ts).
 
@@ -61,6 +66,16 @@ After the last full time, the bot reveals `salt` and the control's match id. Any
 ## Night reports
 
 Once a watch window has closed and results have had 150 minutes to land, every match in it that finished with a score is ranked by drama from the public timeline. Futsal and beach soccer are left out because they score differently. Ties share a rank. The `night` memory records the best match and where the picks landed, without saying which pick ran with memory off. The picks were locked in a `brief` memory before kick-off, so the report can be checked against that lock. The reference implementation is `rankNight` in [lib/night.ts](../lib/night.ts).
+
+## League form
+
+The same night report also measures each competition against the rest of the night. The night's average drama is the mean over every finished match in the window, and a night needs at least three of them. For one competition:
+
+```
+value = clamp((its average drama - the night's average) / 40, -1, 1) × n / (n + 1)
+```
+
+`n` is how many of its matches finished in the window, so one match counts half. Values under 0.05 either way are dropped, and at most 12 are kept, strongest first. Only memory-on picks read league form, worth at most 16 of 100 points (`FORM_POINTS` in [lib/picker.ts](../lib/picker.ts)). The memory-off pick never sees it, so the A/B still compares memory against no memory.
 
 ## Taking it with you
 

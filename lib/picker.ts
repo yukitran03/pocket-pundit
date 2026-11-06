@@ -123,6 +123,9 @@ export interface Candidate {
   contribs: { key: string; value: number }[];
 }
 
+/** Most a competition's league form can move a memory-on score (out of 100). Taste outweighs it: comp 24, signals 30. */
+export const FORM_POINTS = 16;
+
 export function scoreCandidates(fixtures: Fixture[], forms: Map<string, TeamForm | null>, taste: Taste | null, tz: string, windowEndUtc: Date): Candidate[] {
   return fixtures.map((f) => {
     const hForm = f.homeId ? forms.get(f.homeId) ?? null : null;
@@ -146,12 +149,14 @@ export function scoreCandidates(fixtures: Fixture[], forms: Map<string, TeamForm
       add(teamKey(f.away), 0.7);
       for (const [sig, p] of Object.entries(e)) add(`signal:${sig}`, p);
       add(`kick:${bucket}`, 1);
+      add(`cal:${f.compId}`, 1); // league form from night reports: how this competition did against the rest of the night
     }
     // Each kind of evidence gets its own bounded share, so many weak signals can't drown out a strong
     // competition or kick-off preference (and scores don't all pile up at 100). Unclamped, for ranking.
     const part = (prefix: string) => contribs.filter((c) => c.key.startsWith(prefix)).reduce((s, c) => s + c.value, 0);
     const sigMass = Object.values(e).reduce((s, p) => s + p, 0) || 1;
-    const adj = 24 * clamp(part("comp:"), -1, 1) + 8 * clamp(part("team:"), -1, 1) + 30 * clamp(part("signal:") / sigMass, -1, 1) + 12 * clamp(part("kick:"), -1, 1);
+    const adj =
+      24 * clamp(part("comp:"), -1, 1) + 8 * clamp(part("team:"), -1, 1) + 30 * clamp(part("signal:") / sigMass, -1, 1) + 12 * clamp(part("kick:"), -1, 1) + FORM_POINTS * clamp(part("cal:"), -1, 1);
     const mem = base + adj;
     return { f, label: compLabel(f), base: clamp(base, 0, 100), mem, bucket, localKick: fmtLocalTime(f.kickoff, tz), exp: e, formKnown: known, avgGoals: g, hForm, aForm, contribs };
   });
@@ -183,12 +188,14 @@ export function explain(c: Candidate, taste: Taste | null, arm: "memory" | "cont
       else if (p.key.startsWith("team:")) reasons.push(`${p.key.slice(5).replace(/-/g, " ").replace(/\b\w/g, (x) => x.toUpperCase())} keeps showing up in matches you liked.`);
       else if (p.key.startsWith("signal:")) reasons.push(`You go for ${signalPhrase(p.key.slice(7))} (${n} memor${n === 1 ? "y" : "ies"}), and this one has the profile.`);
       else if (p.key.startsWith("kick:")) reasons.push(`Kick-off ${c.localKick} suits when you actually watch.`);
+      else if (p.key.startsWith("cal:")) reasons.push(`${c.label} has been more dramatic than the rest of your evenings lately (${n} night report${n === 1 ? "" : "s"}).`);
       for (const b of [...w.blobs].sort((x, y) => Math.abs(y.contrib) - Math.abs(x.contrib)).slice(0, 2)) {
         if (!cites.some((x) => x.blobId === b.blobId) && cites.length < 3) cites.push({ blobId: b.blobId, text: b.text });
       }
     }
     const neg = [...c.contribs].filter((x) => x.value < -0.08).sort((a, b) => a.value - b.value)[0];
-    if (neg && reasons.length < 3) reasons.push(`Despite ${neg.key.startsWith("kick:") ? "the kick-off time" : signalPhrase(neg.key.split(":")[1])}, it still ranks high tonight.`);
+    if (neg && reasons.length < 3)
+      reasons.push(`Despite ${neg.key.startsWith("kick:") ? "the kick-off time" : neg.key.startsWith("cal:") ? "a quiet run for this competition" : neg.key.startsWith("comp:") || neg.key.startsWith("team:") ? "a cooler record with you" : signalPhrase(neg.key.split(":")[1])}, it still ranks high tonight.`);
   }
   // Neutral reasons are shown in the blind Telegram brief for every pick; memory reasons are revealed after rating.
   const memoryReasons = [...reasons];

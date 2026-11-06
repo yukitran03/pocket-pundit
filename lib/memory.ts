@@ -164,10 +164,12 @@ export async function recallTaste(userId: number, namespace: string): Promise<{ 
   const queries: { query: string; sort: "recent" | "relevance"; limit: number }[] = [
     { query: "football matches I rated, loved or bailed on", sort: "recent", limit: 60 },
     { query: "which leagues, teams, kick-off times and match styles I enjoy or avoid", sort: "relevance", limit: 40 },
+    // League form from night reports: one a night, so the latest two weeks fit easily.
+    { query: "league form in my window: which competitions delivered drama", sort: "recent", limit: 14 },
   ];
   const merged = new Map<string, ParsedMemory>();
   let ok = true;
-  // Both queries at once (well inside the relayer's per-key limit): the brief waits for one round trip, not two.
+  // All queries at once (well inside the relayer's per-key limit): the brief waits for one round trip, not three.
   const runs = queries.map(async (qq) => {
     const t = Date.now();
     try {

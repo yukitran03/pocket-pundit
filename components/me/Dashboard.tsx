@@ -173,6 +173,9 @@ function DashboardView({ data, source, token, mutate }: { data: MeResponseExt; s
           <DivergingBars title="Teams" weights={taste.teams} empty="No team preferences yet." />
           <DivergingBars title="Match signals" weights={taste.signals} empty="Signals appear after the first rated matches." />
           <DivergingBars title="Limits" weights={taste.limits} empty="No limits learned yet." />
+          <div className="md:col-span-2">
+            <DivergingBars title="League form" weights={taste.form ?? []} empty="Builds up from night reports: every finished match in your window, ranked the morning after." />
+          </div>
         </div>
       </Block>
 

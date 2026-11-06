@@ -5,7 +5,7 @@ import { BRAND } from "./brand.ts";
 export type Arm = "memory" | "control";
 export type Rating = "loved" | "fine" | "bailed" | "skipped";
 export type PickStatus = "upcoming" | "live" | "finished";
-export type MemoryKind = "system" | "preference" | "rating" | "lesson" | "limit" | "taste" | "brief" | "night";
+export type MemoryKind = "system" | "preference" | "rating" | "lesson" | "limit" | "taste" | "brief" | "night" | "form";
 export type WriteStatus = "queued" | "pending" | "stored" | "failed";
 
 export interface Drama {
@@ -154,6 +154,7 @@ export interface MeResponse {
     teams: TasteWeight[];
     signals: TasteWeight[];
     limits: TasteWeight[];
+    form?: TasteWeight[]; // league form learned from night reports (moves memory-on picks only)
   };
   memories: MemoryRow[]; // newest first
   ab: { memory: ArmStats; control: ArmStats };

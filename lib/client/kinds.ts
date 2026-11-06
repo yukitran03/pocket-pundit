@@ -15,6 +15,8 @@ export const KIND_META: Record<MemoryKind, { label: string; color: string; shape
   brief: { label: "Locked brief", color: "#e2d6b4", shape: "seal", blurb: "Tonight's picks, sealed before kick-off" },
   // Not taste either: the next morning, every match in the window ranked by what happened, and where the picks landed.
   night: { label: "Night report", color: "#6cb4ee", shape: "seal", blurb: "Every match in your window, ranked after the fact" },
+  // Learned from night reports: which competitions beat (or trailed) the rest of the night. Moves memory-on picks.
+  form: { label: "League form", color: "#3fbfa5", shape: "octa", blurb: "Which competitions delivered in your window" },
 };
 
 export const PRIMARY_KINDS: MemoryKind[] = ["rating", "lesson", "preference", "limit"];

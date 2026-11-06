@@ -6,7 +6,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createWorld } from "./helpers/fakeWorld.ts";
-import { rankNight, nightLine, nightMemory, OTHER_FORMAT, dayBefore } from "../lib/night.ts";
+import { rankNight, nightLine, nightMemory, OTHER_FORMAT, dayBefore, leagueForm, formMemory } from "../lib/night.ts";
+import { buildTaste, parseMemory } from "../lib/taste.ts";
+import { scoreCandidates, explain, FORM_POINTS } from "../lib/picker.ts";
 
 const dir = mkdtempSync(path.join(tmpdir(), "pundit-night-"));
 Object.assign(process.env, {
@@ -58,7 +60,7 @@ afterAll(() => {
   }
 });
 
-const sm = (matchId: string, drama: number, hs = 1, as = 1, kickoff = "2026-11-05T19:00:00Z") => ({ matchId, home: `H${matchId}`, away: `A${matchId}`, competition: "League", kickoff, homeScore: hs, awayScore: as, drama });
+const sm = (matchId: string, drama: number, hs = 1, as = 1, compId = "c1", kickoff = "2026-11-05T19:00:00Z") => ({ matchId, compId, home: `H${matchId}`, away: `A${matchId}`, competition: "League", kickoff, homeScore: hs, awayScore: as, drama });
 
 describe("ranking a night (pure)", () => {
   it("ties share a rank, the best can be caught by a tie, and unranked picks stay null", () => {
@@ -98,6 +100,58 @@ describe("ranking a night (pure)", () => {
     expect(OTHER_FORMAT.test("Beach Soccer World Cup")).toBe(true);
     expect(OTHER_FORMAT.test("CAF Women's Champions League")).toBe(false);
     expect(dayBefore("2026-11-01")).toBe("2026-10-31");
+  });
+});
+
+describe("league form (pure)", () => {
+  // Night average: (90 + 80 + 70 + 24 + 66) / 5 = 66.
+  const night = [
+    { compId: "isl", competition: "Indian Super League", drama: 90 },
+    { compId: "caf", competition: "CAF Women's Champions League", drama: 80 },
+    { compId: "caf", competition: "CAF Women's Champions League", drama: 70 },
+    { compId: "cup", competition: "Cup", drama: 24 },
+    { compId: "flat", competition: "Flat League", drama: 66 },
+  ];
+
+  it("scores each competition against the night's average, shrunk for small samples", () => {
+    const f = leagueForm(night)!;
+    expect(f.mean).toBe(66);
+    expect(f.entries.map((e) => [e.compId, e.value])).toEqual([
+      ["cup", -0.5], // (24 - 66) / 40 clamps to -1, and one match counts half
+      ["isl", 0.3], // (90 - 66) / 40 = 0.6, halved
+      ["caf", 0.15], // (75 - 66) / 40 = 0.225, two matches count two thirds
+    ]); // "flat" sat on the average, so it says nothing
+    expect(leagueForm(night.slice(0, 2))).toBeNull(); // two matches say nothing about leagues
+  });
+
+  it("writes cal tags the taste model reads back, with decay, and never as a verdict", () => {
+    const text = formMemory("2026-11-05", "19:00 to 00:00", leagueForm(night))!;
+    expect(text).toBe(
+      "[form] 2026-11-05 · League form in my 19:00 to 00:00 window, from 5 finished matches averaging drama 66: Cup 24 (below); Indian Super League 90 (above); CAF Women's Champions League 75 (above, 2 matches). tags: kind=form cal=cup:-0.50 cal=isl:+0.30 cal=caf:+0.15",
+    );
+    const m = parseMemory("blob-form", text);
+    expect(m.verdict).toBe(0);
+    expect(m.cals).toEqual([{ key: "cal:cup", value: -0.5 }, { key: "cal:isl", value: 0.3 }, { key: "cal:caf", value: 0.15 }]);
+    const fresh = buildTaste([m], "2026-11-05").weights.get("cal:isl")!;
+    const old = buildTaste([m], "2026-11-26").weights.get("cal:isl")!; // 21 days later: half the evidence
+    expect(fresh.w).toBeCloseTo(Math.tanh(0.3 / 1.5), 3);
+    expect(old.w).toBeCloseTo(Math.tanh((0.3 * 0.5) / 1.5), 3);
+    expect(fresh.blobs[0].blobId).toBe("blob-form");
+    expect(formMemory("2026-11-05", "19:00 to 00:00", null)).toBeNull();
+  });
+
+  it("moves only the memory-on score, by at most FORM_POINTS, and explains itself with the night report", () => {
+    const f = { matchId: "m1", compId: "isl", seasonId: "s", stageId: "st", competition: "Indian Super League", stage: null, kickoff: "2026-11-06T14:00:00Z", home: "Mohun Bagan", away: "Bengaluru", homeId: null, awayId: null, country: null, homeScore: null, awayScore: null, status: 1 };
+    const taste = buildTaste([parseMemory("blob-form", "[form] 2026-11-05 · League form. tags: kind=form cal=isl:+1.00")], "2026-11-05");
+    const [withForm] = scoreCandidates([f], new Map(), taste, "Asia/Ho_Chi_Minh", new Date("2026-11-06T17:00:00Z"));
+    const [without] = scoreCandidates([f], new Map(), null, "Asia/Ho_Chi_Minh", new Date("2026-11-06T17:00:00Z"));
+    expect(withForm.base).toBe(without.base); // the memory-off arm never sees league form
+    expect(withForm.mem - withForm.base).toBeGreaterThan(0);
+    expect(withForm.mem - withForm.base).toBeLessThanOrEqual(FORM_POINTS);
+    const why = explain(withForm, taste, "memory");
+    expect(why.memoryReasons.join(" ")).toMatch(/Indian Super League has been more dramatic than the rest of your evenings lately \(1 night report\)\./);
+    expect(why.cites.map((c) => c.blobId)).toContain("blob-form");
+    expect(explain(withForm, taste, "control").cites).toEqual([]);
   });
 });
 
@@ -151,10 +205,32 @@ describe("a night, end to end", () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0].text).toMatch(new RegExp(`^\\[night\\] ${D} · Night report for my 19:00 to 02:00 window: 3 of 4 matches finished with full data\\. Best: Northbridge 3–2 Eastvale \\(Premier League\\), drama \\d+, one of my picks\\. My picks ranked #1 and #3 \\(1 had no result in the feed\\)\\.`));
     expect(jobs[0].text).not.toMatch(/control|memory off|memory-off/i);
+    // League form from the same night: Premier League's one match (drama 100) against a night averaging 54 is +0.50
+    // after shrinkage; Ligue 1's two (11 and 52) sit below it.
+    expect(r.form.entries.map((e: any) => e.compId)).toEqual([EPL.compId, L1.compId]);
+    const forms = await L.db.q(`select text from memory_jobs where user_id = $1 and kind = 'form'`, [UID]);
+    expect(forms).toHaveLength(1);
+    expect(forms[0].text).toMatch(new RegExp(`^\\[form\\] ${D} · League form in my 19:00 to 02:00 window, from 3 finished matches averaging drama 54: Premier League 100 \\(above\\); Ligue 1 32 \\(below, 2 matches\\)\\. tags: kind=form cal=${EPL.compId}:\\+0\\.50 cal=${L1.compId}:-0\\.38$`));
+
     await L.memory.processMemoryQueue(10);
     await L.memory.processMemoryQueue(10);
-    const [stored] = await L.db.q(`select status, blob_id from memory_jobs where user_id = $1 and kind = 'night'`, [UID]);
-    expect(stored.status).toBe("stored");
+    const stored = await L.db.q(`select kind, status from memory_jobs where user_id = $1 and kind in ('night','form') order by kind`, [UID]);
+    expect(stored).toEqual([{ kind: "form", status: "stored" }, { kind: "night", status: "stored" }]);
+  });
+
+  it("adds league form to nights reported before it existed, once", async () => {
+    await L.db.q(`update nights set report = report - 'form' where user_id = $1`, [UID]);
+    const [kept] = await L.db.q(`select id from memory_jobs where user_id = $1 and kind = 'form'`, [UID]);
+    await L.db.q(`update memory_jobs set idem_key = idem_key || ':old' where id = $1`, [kept.id]); // as if it never had one
+    expect(await L.night.runNights(at(31))).toBe(1);
+    expect(await L.night.runNights(at(32))).toBe(0);
+    const [row] = await L.db.q(`select report from nights where user_id = $1`, [UID]);
+    expect(row.report.form.entries).toHaveLength(2);
+    expect(row.report.best.matchId).toBe(ids.wild); // the rest of the report is untouched
+    const fresh = await L.db.q(`select id from memory_jobs where user_id = $1 and kind = 'form' and idem_key not like '%:old'`, [UID]);
+    expect(fresh).toHaveLength(1);
+    await L.db.q(`delete from memory_jobs where id = $1`, [fresh[0].id]); // keep one form memory for what follows
+    await L.db.q(`update memory_jobs set idem_key = replace(idem_key, ':old', '') where id = $1`, [kept.id]);
   });
 
   it("a night report never moves the taste weights", async () => {
@@ -165,14 +241,28 @@ describe("a night, end to end", () => {
     expect(t.weights.size).toBe(0);
   });
 
-  it("opens the next brief, spoiler-free by default", async () => {
+  it("opens the next brief, spoiler-free by default, and the memory-on picks read the league form back from Walrus", async () => {
+    const next = world.add({ ...EPL, home: "Westford", away: "Southgate", kickoff: at(24 + 20), status: 1, hs: null, as: null });
+    world.add({ ...L1, home: "Plage B", away: "Foret B", kickoff: at(24 + 20.5), status: 1, hs: null, as: null });
+    world.add({ compId: "minor-league", comp: "Regional League", home: "Village A", away: "Village B", kickoff: at(24 + 21), status: 1, hs: null, as: null });
     const u = await L.telegram.getUser(UID);
     const m = world.mark();
-    await L.telegram.sendBrief(u, at(24 + 18.1));
+    const b = await L.telegram.sendBrief(u, at(24 + 18.1));
     const text = world.since(m, "sendMessage").map((c) => c.body.text).join("\n");
     expect(text).toMatch(/🏆 Last night's best in your window was one of your picks: <b>Northbridge v Eastvale<\/b> · drama \d+/);
     expect(text).not.toMatch(/3–2/);
     expect(text).not.toMatch(/—/);
+
+    const [form] = await L.db.q(`select blob_id from memory_jobs where user_id = $1 and kind = 'form' and status = 'stored'`, [UID]);
+    const epl = b.picks.find((p: any) => p.c.f.matchId === next.id);
+    expect(epl).toBeTruthy();
+    const cal = epl.c.contribs.find((x: any) => x.key === `cal:${EPL.compId}`);
+    expect(cal.value).toBeGreaterThan(0);
+    expect(epl.arm).toBe("memory"); // top on both scores, and the form only lifts it
+    expect(epl.cites.map((c: any) => c.blobId)).toContain(form.blob_id);
+    expect(epl.reasons.join(" ")).toMatch(/Premier League( \(XYZ\))? has been more dramatic than the rest of your evenings lately \(1 night report\)/);
+    const l1 = b.picks.find((p: any) => p.c.f.compId === L1.compId);
+    if (l1) expect(l1.c.contribs.find((x: any) => x.key === `cal:${L1.compId}`).value).toBeLessThan(0);
   });
 
   it("public stats count the night, but keep arms out until every pick is answered", async () => {

@@ -22,11 +22,13 @@ Football fans who love the game but can't watch everything. Many live in Asia, w
 | Watching 90 minutes of a dead game | A "worth switching on" ping when a match in your window turns tight and late (at most twice a day) |
 | Missing kick-off | A reminder about 20 minutes before each pick, plus a calendar feed that fills itself |
 | Spoilers in every app | Full-time messages hide the score until you've answered |
-| Not knowing which highlights matter | One spoiler-free line: last night's match most worth the highlights |
+| Not knowing which highlights matter | One spoiler-free line opens each brief: last night's best match in your window, and whether it was one of your picks |
 | Explaining your taste to every app | It learns from your taps. `/ask` shows what it knows, `/card` turns it into an image you can share, and `/export` hands you all of it |
 | Agreeing with a friend on what to watch | `/duo` adds one shared pick a night for both of you |
 
 Memory tunes every one of those: the leagues you enjoy, the styles you love or bail on (late goals, comebacks, cagey 0–0s), and the kick-off times you really stay up for.
+
+It also learns from every match in your window, not just the three you rated. Each morning a **night report** ranks every match that finished in your window by what actually happened. It records where your picks landed, misses included, and how each competition did against the rest of the night. Both go to Walrus. The memory-on picks read that **league form** back the next evening; the memory-off pick never does.
 
 ## Why you can trust a pick
 
@@ -166,6 +168,7 @@ flowchart LR
 | Ownership (optional) | `/own` opens a page that uses the Wallet Standard (no JSON-RPC): the viewer's wallet calls `account::create_account` and `account::add_delegate_key` itself. The server finds the account with Tatum GraphQL (`AccountCreated` event) and verifies the key with Tatum gRPC `GetObject` before switching that viewer's writes and recalls to their account. Removing the key is detected at the next brief ([lib/own.ts](lib/own.ts)) |
 | Portability | Memories follow a documented sentence + tags format ([docs/MEMORY-FORMAT.md](docs/MEMORY-FORMAT.md)); `/export` downloads a taste passport any app can rebuild the same taste from |
 | Blind A/B + locks | Two memory picks and one memory-off control, shuffled, with neutral reasons only. The brief is locked on Walrus before kick-off, with the control sealed by a commit that is revealed after the last full time ([lib/lock.ts](lib/lock.ts)) |
+| Night reports + league form | Once a window closes, every finished match in it is ranked by drama from the public timeline. A `[night]` memory records where the picks landed (no arms, so the seal holds). A `[form]` memory scores each competition against the night's average, shrunk for small samples. Memory-on picks read league form back, worth at most 16 of 100 points. The record ("night's best caught") is on the landing page and in `/api/stats` ([lib/night.ts](lib/night.ts)) |
 
 ## Bot commands
 

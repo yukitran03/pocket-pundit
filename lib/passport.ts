@@ -4,6 +4,7 @@ import { q, one } from "./db.ts";
 import { env } from "./env.ts";
 import { buildTaste, parseMemory, tasteToContract } from "./taste.ts";
 import { KNOWN_COMPS } from "./views.ts";
+import { formLabels } from "./night.ts";
 import { localParts, walruscan, slug } from "./util.ts";
 
 export const PASSPORT_FORMAT = "pocket-pundit.taste-passport/v1";
@@ -20,6 +21,7 @@ export async function tastePassport(userId: number) {
     labels.set(`team:${slug(p.home)}`, p.home);
     labels.set(`team:${slug(p.away)}`, p.away);
   }
+  for (const [id, label] of await formLabels(userId)) if (!labels.has(`comp:${id}`)) labels.set(`comp:${id}`, label);
   return {
     format: PASSPORT_FORMAT,
     generatedAt: new Date().toISOString(),

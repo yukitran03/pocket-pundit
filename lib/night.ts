@@ -42,9 +42,65 @@ export interface NightReport {
   picks: NightPick[];
   caughtBest: boolean; // a pick was the night's best (or tied for it)
   top3: number; // picks ranked in the night's top three
+  form?: LeagueForm; // what the night said about each competition (written to Walrus as a [form] memory)
 }
 
-type Scored = Pick<Fixture, "matchId" | "home" | "away" | "competition" | "kickoff"> & { homeScore: number; awayScore: number; drama: number };
+type Scored = Pick<Fixture, "matchId" | "compId" | "home" | "away" | "competition" | "kickoff"> & { homeScore: number; awayScore: number; drama: number };
+
+// ---------- league form: the learning half of a night report ----------
+
+export interface FormEntry {
+  compId: string;
+  competition: string;
+  n: number; // finished matches from this competition in the window
+  mean: number; // their average drama
+  value: number; // -1..1: above (+) or below (-) the night's average, shrunk towards 0 for small samples
+}
+
+export interface LeagueForm {
+  mean: number; // the night's average drama
+  matches: number;
+  entries: FormEntry[];
+}
+
+const FORM_MIN_MATCHES = 3; // fewer finished matches than this and the night says nothing about leagues
+const FORM_SCALE = 40; // 40 drama points above the night's average = +1 before shrinkage
+const FORM_MIN_VALUE = 0.05;
+const FORM_MAX_ENTRIES = 12;
+
+/**
+ * Pure: how each competition did against the rest of the night. One match is weak evidence, so a competition's
+ * value is shrunk by n / (n + 1): a single 87 against a night averaging 61 counts as +0.33, not +0.65.
+ */
+export function leagueForm(scored: Pick<Scored, "compId" | "competition" | "drama">[]): LeagueForm | null {
+  if (scored.length < FORM_MIN_MATCHES) return null;
+  const mean = scored.reduce((s, m) => s + m.drama, 0) / scored.length;
+  const by = new Map<string, { competition: string; sum: number; n: number }>();
+  for (const m of scored) {
+    const e = by.get(m.compId) ?? { competition: m.competition, sum: 0, n: 0 };
+    e.sum += m.drama;
+    e.n++;
+    by.set(m.compId, e);
+  }
+  const entries: FormEntry[] = [];
+  for (const [compId, e] of by) {
+    const avg = e.sum / e.n;
+    const value = Math.max(-1, Math.min(1, (avg - mean) / FORM_SCALE)) * (e.n / (e.n + 1));
+    if (Math.abs(value) >= FORM_MIN_VALUE) entries.push({ compId, competition: e.competition, n: e.n, mean: Math.round(avg), value: Math.round(value * 100) / 100 });
+  }
+  entries.sort((a, b) => Math.abs(b.value) - Math.abs(a.value) || a.compId.localeCompare(b.compId));
+  return { mean: Math.round(mean), matches: scored.length, entries: entries.slice(0, FORM_MAX_ENTRIES) };
+}
+
+const signed = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}`;
+
+/** The Walrus sentence for league form. Its `cal=` tags are what the memory-on picks read back. */
+export function formMemory(date: string, windowLabel: string, form: LeagueForm | null): string | null {
+  if (!form || !form.entries.length) return null;
+  const said = form.entries.slice(0, 3).map((e) => `${e.competition} ${e.mean} (${e.value >= 0 ? "above" : "below"}${e.n > 1 ? `, ${e.n} matches` : ""})`);
+  const tags = form.entries.map((e) => `cal=${e.compId}:${signed(e.value)}`).join(" ");
+  return `[form] ${date} · League form in my ${windowLabel} window, from ${form.matches} finished matches averaging drama ${form.mean}: ${said.join("; ")}. tags: kind=form ${tags}`;
+}
 
 /** Pure: rank the scored matches and place the picks. Ties share a rank (competition ranking). */
 export function rankNight(date: string, scheduled: number, scored: Scored[], picks: { match_id: string; arm: string; home: string; away: string }[]): NightReport {
@@ -92,21 +148,19 @@ export function nightMemory(r: NightReport, windowLabel: string): string | null 
 
 const hh = (h: number) => `${String(h % 24).padStart(2, "0")}:00`;
 
-/** Compute and store one night (idempotent). Returns null until the window has closed and results had time to land. */
-export async function ensureNight(user: { id: number; namespace: string; tz: string; window_start: number; window_end: number }, date: string, now = new Date()): Promise<NightReport | null> {
-  const have = await one<any>(`select report from nights where user_id = $1 and brief_date = $2`, [user.id, date]);
-  if (have) return have.report as NightReport;
+type NightUser = { id: number; namespace: string; tz: string; window_start: number; window_end: number };
+
+const windowLabel = (u: NightUser) => `${hh(u.window_start)} to ${hh(u.window_end)}`;
+
+/** Every match in the window (other formats left out), and the finished ones with their drama. */
+async function scoreWindow(user: NightUser, date: string, pickIds: Set<string>): Promise<{ all: Fixture[]; scored: Scored[] }> {
   const { start, end } = windowOf(user, date);
-  if (now.getTime() < end.getTime() + READY_AFTER_MS) return null;
-  const picks = await q<any>(`select match_id, arm, home, away from picks where user_id = $1 and brief_date = $2 order by slot`, [user.id, date]);
-  if (!picks.length) return null;
   const all = (await fixturesBetween(start, end)).filter((f) => !OTHER_FORMAT.test(f.competition));
   const done = all.filter((f) => f.status === 0 && f.homeScore !== null && f.awayScore !== null);
   // Full drama needs the timeline. Fetch it for the likeliest contenders by score (and every pick); on a very busy
   // night the long tail keeps the score-only estimate.
   const rough = done.map((f) => ({ f, d: computeDrama(null, f.homeScore, f.awayScore).score }));
   rough.sort((a, b) => b.d - a.d);
-  const pickIds = new Set(picks.map((p) => p.match_id));
   const deep = new Set([...rough.slice(0, MAX_TIMELINES).map((x) => x.f.matchId), ...pickIds]);
   const scored: Scored[] = [];
   for (const { f, d } of rough) {
@@ -115,15 +169,48 @@ export async function ensureNight(user: { id: number; namespace: string; tz: str
       const ev = await timeline(f.matchId);
       if (ev && ev.length) drama = computeDrama(ev, f.homeScore, f.awayScore).score;
     }
-    scored.push({ matchId: f.matchId, home: f.home, away: f.away, competition: f.competition, kickoff: f.kickoff, homeScore: f.homeScore!, awayScore: f.awayScore!, drama });
+    scored.push({ matchId: f.matchId, compId: f.compId, home: f.home, away: f.away, competition: f.competition, kickoff: f.kickoff, homeScore: f.homeScore!, awayScore: f.awayScore!, drama });
   }
-  const report = rankNight(date, all.length, scored, picks);
+  return { all, scored };
+}
+
+const enqueueForm = (user: NightUser, date: string, form: LeagueForm | null) => {
+  const text = formMemory(date, windowLabel(user), form);
+  return text ? enqueueMemory({ userId: user.id, namespace: user.namespace, kind: "form", text, idem: `form:${user.id}:${date}` }) : null;
+};
+
+/** Compute and store one night (idempotent). Returns null until the window has closed and results had time to land. */
+export async function ensureNight(user: NightUser, date: string, now = new Date()): Promise<NightReport | null> {
+  const have = await one<any>(`select report from nights where user_id = $1 and brief_date = $2`, [user.id, date]);
+  if (have) return have.report as NightReport;
+  const { end } = windowOf(user, date);
+  if (now.getTime() < end.getTime() + READY_AFTER_MS) return null;
+  const picks = await q<any>(`select match_id, arm, home, away from picks where user_id = $1 and brief_date = $2 order by slot`, [user.id, date]);
+  if (!picks.length) return null;
+  const { all, scored } = await scoreWindow(user, date, new Set(picks.map((p) => p.match_id)));
+  const report: NightReport = { ...rankNight(date, all.length, scored, picks), form: leagueForm(scored) ?? { mean: 0, matches: scored.length, entries: [] } };
   const inserted = await q(`insert into nights (user_id, brief_date, report) values ($1, $2, $3::jsonb) on conflict do nothing returning user_id`, [user.id, date, JSON.stringify(report)]);
   if (inserted.length) {
-    const text = nightMemory(report, `${hh(user.window_start)} to ${hh(user.window_end)}`);
+    const text = nightMemory(report, windowLabel(user));
     if (text) await enqueueMemory({ userId: user.id, namespace: user.namespace, kind: "night", text, idem: `night:${user.id}:${date}` });
+    await enqueueForm(user, date, report.form ?? null);
   }
   return report;
+}
+
+/** Nights reported before league form existed: score the window again and add the form (once; idempotent). */
+async function addForm(user: NightUser, date: string): Promise<boolean> {
+  const picks = await q<any>(`select match_id from picks where user_id = $1 and brief_date = $2`, [user.id, date]);
+  const { scored } = await scoreWindow(user, date, new Set(picks.map((p) => p.match_id)));
+  const form = leagueForm(scored);
+  // An empty form is still recorded, so the night isn't scored again on every pass.
+  const done = await q(`update nights set report = report || jsonb_build_object('form', $3::jsonb) where user_id = $1 and brief_date = $2 and not (report ? 'form') returning user_id`, [
+    user.id,
+    date,
+    JSON.stringify(form ?? { mean: 0, matches: scored.length, entries: [] }),
+  ]);
+  if (done.length) await enqueueForm(user, date, form);
+  return done.length > 0;
 }
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -158,7 +245,25 @@ export async function runNights(now = new Date(), max = 6): Promise<number> {
     const rep = await ensureNight({ id: Number(r.user_id), namespace: r.namespace, tz: r.tz, window_start: r.window_start, window_end: r.window_end }, r.brief_date, now);
     if (rep) made++;
   }
+  const older = await q<any>(
+    `select n.user_id, n.brief_date, u.namespace, u.tz, u.window_start, u.window_end from nights n join users u on u.id = n.user_id
+     where not (n.report ? 'form') and n.created_at > $1::timestamptz - interval '4 days' order by n.brief_date limit 6`,
+    [now.toISOString()],
+  );
+  for (const r of older) {
+    if (made >= max) break;
+    if (await addForm({ id: Number(r.user_id), namespace: r.namespace, tz: r.tz, window_start: r.window_start, window_end: r.window_end }, r.brief_date)) made++;
+  }
   return made;
+}
+
+/** Competition names seen in this viewer's league form (compId → name), for labelling learned weights. */
+export async function formLabels(userId: number): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (const r of await q<any>(`select report from nights where user_id = $1 order by brief_date`, [userId])) {
+    for (const e of (r.report as NightReport).form?.entries ?? []) out.set(e.compId, e.competition);
+  }
+  return out;
 }
 
 /** The viewer's record so far: nights with a ranked result, and how many had the night's best among the picks. */
