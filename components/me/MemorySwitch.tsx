@@ -11,8 +11,8 @@ import { EmptyState } from "@/components/site/States";
 const RATING_WORD: Record<Rating, string> = { loved: "Loved", fine: "Fine", bailed: "Bailed", skipped: "Didn’t watch" };
 
 const SIDES = [
-  { key: "on", title: "With your memory", color: "var(--flare)", score: (r: SwitchRow) => r.mem },
-  { key: "off", title: "Memory off", color: "var(--steel)", score: (r: SwitchRow) => r.base },
+  { key: "on", title: "With your memory", color: "var(--flare)" },
+  { key: "off", title: "Memory off", color: "var(--steel)" },
 ] as const;
 
 function headline(n: SwitchNight): { head: string; tail: string } {
@@ -37,8 +37,9 @@ function Row({ r, side, other, scored, tz }: { r: SwitchRow; side: (typeof SIDES
           <p className="font-semibold leading-snug text-chalk">
             {r.home} v {r.away}
           </p>
+          {/* Ranks, not scores: memory-on scores often top out at 100, and the two scales aren't comparable. */}
           <p className="mt-0.5 text-xs text-chalk-3">
-            {r.competition} · {fmtTime(r.kickoff, tz)} · <span className="tnum">{side.score(r)}/100</span>
+            {r.competition} · {fmtTime(r.kickoff, tz)}
           </p>
         </div>
         {r.picked ? <span className="chip shrink-0">{r.rating ? `Picked · ${RATING_WORD[r.rating]}` : "Picked"}</span> : null}
