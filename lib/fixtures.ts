@@ -274,6 +274,26 @@ export const FIXTURE_ME: MeResponse = {
   },
   memories: FIXTURE_MEMORIES,
   ab: { memory: armStats(FIXTURE_HISTORY, "memory"), control: armStats(FIXTURE_HISTORY, "control") },
+  memorySwitch: [
+    { date: "2026-11-03", sealed: true, changed: 2, considered: 41, scored: null, on: [], off: [] },
+    {
+      date: "2026-11-02",
+      sealed: false,
+      changed: 3,
+      considered: 38,
+      scored: 22,
+      on: [
+        { matchId: "sw1", home: "Al-Sadd", away: "Al-Hilal", competition: "AFC Champions League Elite", kickoff: "2026-11-02T15:00:00Z", base: 58, mem: 82, rankOn: 1, rankOff: 6, why: "You go for late drama (7 memories), and this one has the profile.", cites: cite("m17", "m19"), picked: true, rating: "loved", drama: 83, nightRank: 1 },
+        { matchId: "sw3", home: "Torino", away: "Parma", competition: "Serie A (ITA)", kickoff: "2026-11-02T17:30:00Z", base: 49, mem: 63, rankOn: 2, rankOff: 8, why: "Kick-off 00:30 suits when you actually watch.", cites: cite("m19", "m20"), picked: true, rating: "fine", drama: 47, nightRank: 7 },
+        { matchId: "sw6", home: "PSV", away: "AZ", competition: "Eredivisie (NED)", kickoff: "2026-11-02T19:00:00Z", base: 52, mem: 61, rankOn: 3, rankOff: 7, why: "You've enjoyed Eredivisie (NED) before (2 memories).", cites: cite("m06"), picked: false, rating: null, drama: 58, nightRank: 4 },
+      ],
+      off: [
+        { matchId: "sw2", home: "Fulham", away: "Everton", competition: "Premier League (ENG)", kickoff: "2026-11-02T20:00:00Z", base: 66, mem: 58, rankOn: 5, rankOff: 1, why: "Other matches rose above it on your memories.", cites: [], picked: true, rating: "skipped", drama: 44, nightRank: 9 },
+        { matchId: "sw4", home: "Getafe", away: "Alavés", competition: "LaLiga (ESP)", kickoff: "2026-11-02T20:00:00Z", base: 63, mem: 41, rankOn: 14, rankOff: 2, why: "You've cooled on LaLiga (ESP) (2 memories).", cites: cite("m07"), picked: false, rating: null, drama: 12, nightRank: 19 },
+        { matchId: "sw5", home: "Bayern München", away: "Union Berlin", competition: "Bundesliga (GER)", kickoff: "2026-11-02T17:30:00Z", base: 61, mem: 44, rankOn: 11, rankOff: 3, why: "You haven't enjoyed one-sided games (2 memories), and this one has the profile.", cites: cite("m06"), picked: false, rating: null, drama: 21, nightRank: 15 },
+      ],
+    },
+  ],
   shares: [],
 };
 

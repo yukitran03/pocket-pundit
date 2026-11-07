@@ -1,5 +1,7 @@
 // Assembles the JSON the web UI renders (see lib/contract.ts).
-import type { ArmStats, MeResponse, MemoryRow, Pick, ProofResponse, Rating, StatsResponse, WriteStatus, MemoryKind } from "./contract.ts";
+import type { ArmStats, MeResponse, MemoryRow, Pick, ProofResponse, Rating, StatsResponse, SwitchNight, SwitchRow, WriteStatus, MemoryKind } from "./contract.ts";
+import type { MemorySwitch } from "./picker.ts";
+import type { NightReport } from "./night.ts";
 import { q, one, cached } from "./db.ts";
 import { env } from "./env.ts";
 import { buildTaste, parseMemory, tasteToContract } from "./taste.ts";
@@ -63,6 +65,39 @@ function armStats(rows: any[]): ArmStats {
 
 const STATUS: Record<string, WriteStatus> = { queued: "queued", pending: "pending", stored: "stored", failed: "failed" };
 
+/**
+ * The memory switch for a viewer's recent briefs, newest first. A night stays sealed (no lists in the response)
+ * while any of its picks is still open, because the memory-off list would point at the memory-off pick.
+ */
+export async function switchNights(userId: number, picks: any[], limit = 7): Promise<SwitchNight[]> {
+  const rows = await q<any>(`select brief_date, considered, switch from scans where user_id = $1 and switch is not null order by brief_date desc limit $2`, [userId, limit]);
+  if (!rows.length) return [];
+  const nights = new Map<string, NightReport>(
+    (await q<any>(`select brief_date, report from nights where user_id = $1 and brief_date = any($2::text[])`, [userId, rows.map((r) => r.brief_date)])).map((n) => [n.brief_date, n.report]),
+  );
+  return rows.map((r) => {
+    const sw = r.switch as MemorySwitch;
+    const mine = picks.filter((p) => p.brief_date === r.brief_date);
+    const sealed = mine.some((p) => !p.rating && !p.settled_at);
+    const night = nights.get(r.brief_date);
+    const placed = new Map((night?.switch ?? []).map((x) => [x.matchId, x]));
+    const row = (e: MemorySwitch["on"][number]): SwitchRow => {
+      const p = mine.find((x) => x.match_id === e.matchId);
+      const pl = placed.get(e.matchId);
+      return { ...e, picked: !!p, rating: p?.rating ?? null, drama: pl?.drama ?? null, nightRank: pl?.rank ?? null };
+    };
+    return {
+      date: r.brief_date,
+      sealed,
+      changed: sw.changed,
+      considered: sw.considered ?? Number(r.considered),
+      scored: night ? night.scored : null,
+      on: sealed ? [] : sw.on.map(row),
+      off: sealed ? [] : sw.off.map(row),
+    };
+  });
+}
+
 /** On-chain Blob objects for the account owner, keyed by u256 blob id. Cached: the chain is slow-moving. */
 export async function chainBlobMap(): Promise<{ owner: string | null; blobs: Map<string, ChainBlob> }> {
   const data = await cached("proof:chainblobs", 300, async () => {
@@ -115,6 +150,7 @@ export async function meView(userId: number): Promise<MeResponse | null> {
     taste: tasteToContract(taste, labels),
     memories,
     ab: { memory: armStats(picks.filter((p) => p.arm === "memory")), control: armStats(picks.filter((p) => p.arm === "control")) },
+    memorySwitch: await switchNights(userId, picks).catch(() => []),
     shares: [],
     currentWalrusEpoch: [...blobs.values()].reduce((m, b) => Math.max(m, b.certifiedEpoch ?? 0), 0) || undefined,
   };
@@ -172,6 +208,11 @@ export async function statsView(): Promise<StatsResponse> {
     const [u] = await q<any>(`select count(*)::int n from users where onboard_step = 'done'`);
     const picks = await q<any>(`select arm, rating, drama from picks`);
     const [s] = await q<any>(`select coalesce(sum(considered),0)::int n from scans`);
+    // Counts only (no lists), so a night's open picks stay blind.
+    const [sw] = await q<any>(
+      `select count(*)::int briefs, coalesce(sum((switch->>'changed')::int),0)::int changed, coalesce(sum(jsonb_array_length(switch->'on')),0)::int slots
+       from scans where switch is not null`,
+    );
     const feedUser = env.publicFeedUser();
     const lessons = feedUser
       ? await q<any>(`select text, created_at, blob_id from memory_jobs where user_id = $1 and kind in ('lesson','rating') and status = 'stored' order by id desc limit 6`, [Number(feedUser)])
@@ -184,6 +225,7 @@ export async function statsView(): Promise<StatsResponse> {
       matchesScanned: s.n,
       ab: { memory: armStats(picks.filter((p) => p.arm === "memory")), control: armStats(picks.filter((p) => p.arm === "control")) },
       nights: await nightStats(),
+      switch: { briefs: sw.briefs, changed: sw.changed, slots: sw.slots },
       recentLessons: lessons.map((l) => ({ ...feedItem(l.text), createdAt: new Date(l.created_at).toISOString(), blobId: l.blob_id })),
       updatedAt: new Date().toISOString(),
     };

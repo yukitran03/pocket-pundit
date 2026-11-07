@@ -12,7 +12,7 @@ import { enqueueMemory } from "./memory.ts";
 import { buildTaste, lessonMemory, parseMemory, humanKey } from "./taste.ts";
 import type { UserRow } from "./picker.ts";
 import { KNOWN_COMPS } from "./views.ts";
-import { lockLine } from "./lock.ts";
+import { lockLine, lockedText, suiCertification } from "./lock.ts";
 import { stillOwned } from "./own.ts";
 import { tonightView } from "./tonight.ts";
 import { coverageMap } from "./coverage.ts";
@@ -92,12 +92,13 @@ export async function tick(now = new Date()): Promise<TickReport | null> {
       rep.memory = { submitted: m.submitted, stored: m.stored.length, failed: m.failed };
       // Notify from the table, not from this pass: a job may have been settled by the webhook's own queue run.
       const due = await q<any>(
-        `select id, notify_chat, notify_message, blob_id from memory_jobs
+        `select id, kind, idem_key, user_id, notify_chat, notify_message, blob_id from memory_jobs
          where status = 'stored' and notify_chat is not null and notify_message is not null and notified_at is null
            and updated_at > now() - interval '2 hours' order by id limit 20`,
       );
       for (const s of due) {
-        await notifyStored(Number(s.notify_chat), Number(s.notify_message), s.blob_id).catch(() => {});
+        if (s.kind === "brief") await notifyLocked(s).catch(() => {});
+        else await notifyStored(Number(s.notify_chat), Number(s.notify_message), s.blob_id).catch(() => {});
         await q(`update memory_jobs set notified_at = now() where id = $1`, [s.id]);
       }
     });
@@ -250,6 +251,22 @@ ${escHtml(a.why)}${u.show_scores ? "" : " (Score hidden.)"}`;
 
     rep.ms = Date.now() - t0;
     return rep;
+  });
+}
+
+/** Tonight's lock reached Walrus: reply to the brief with the blob and when Sui certified it (read via Tatum). */
+async function notifyLocked(s: { idem_key: string; user_id: number | string; notify_chat: number | string; notify_message: number | string; blob_id: string }) {
+  const date = String(s.idem_key).split(":").pop()!;
+  const u = await q<any>(`select tz from users where id = $1`, [s.user_id]);
+  const [k] = await q<any>(`select min(kickoff) k from picks where user_id = $1 and brief_date = $2`, [s.user_id, date]);
+  const cert = await suiCertification(s.blob_id).catch(() => null);
+  await tg("sendMessage", {
+    chat_id: Number(s.notify_chat),
+    text: lockedText({ blobId: s.blob_id, walruscanUrl: walruscan(s.blob_id), cert, firstKickoff: k?.k ? new Date(k.k).toISOString() : null, tz: u[0]?.tz ?? "UTC" }),
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+    disable_notification: true,
+    reply_parameters: { message_id: Number(s.notify_message), allow_sending_without_reply: true },
   });
 }
 

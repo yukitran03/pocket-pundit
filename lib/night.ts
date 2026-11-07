@@ -45,6 +45,22 @@ export interface NightReport {
   caughtBest: boolean; // a pick was the night's best (or tied for it)
   top3: number; // picks ranked in the night's top three
   form?: LeagueForm; // what the night said about each competition (written to Walrus as a [form] memory)
+  switch?: Placed[]; // how the memory switch's two lists did (both the memory-on and the memory-off three)
+}
+
+export interface Placed {
+  matchId: string;
+  drama: number | null; // null: no result in the feed
+  rank: number | null;
+}
+
+/** Pure: drama and rank (ties share a rank) for any matches of the night, by id. */
+export function placeMatches(scored: Pick<Scored, "matchId" | "drama">[], ids: string[]): Placed[] {
+  const byId = new Map(scored.map((m) => [m.matchId, m]));
+  return [...new Set(ids)].map((matchId) => {
+    const m = byId.get(matchId);
+    return { matchId, drama: m ? m.drama : null, rank: m ? 1 + scored.filter((x) => x.drama > m.drama).length : null };
+  });
 }
 
 type Scored = Pick<Fixture, "matchId" | "compId" | "home" | "away" | "competition" | "kickoff"> & { homeScore: number; awayScore: number; drama: number };
@@ -208,8 +224,14 @@ export async function ensureNight(user: NightUser, date: string, now = new Date(
   if (now.getTime() < end.getTime() + READY_AFTER_MS) return null;
   const picks = await q<any>(`select match_id, arm, home, away from picks where user_id = $1 and brief_date = $2 order by slot`, [user.id, date]);
   if (!picks.length) return null;
-  const { all, scored } = await scoreWindow(user, date, new Set(picks.map((p) => p.match_id)));
-  const report: NightReport = { ...rankNight(date, all.length, scored, picks), form: leagueForm(scored) ?? { mean: 0, matches: scored.length, entries: [] } };
+  const sw = await one<any>(`select switch from scans where user_id = $1 and brief_date = $2`, [user.id, date]);
+  const swIds: string[] = sw?.switch ? [...(sw.switch.on ?? []), ...(sw.switch.off ?? [])].map((e: any) => e.matchId) : [];
+  const { all, scored } = await scoreWindow(user, date, new Set([...picks.map((p) => p.match_id), ...swIds]));
+  const report: NightReport = {
+    ...rankNight(date, all.length, scored, picks),
+    form: leagueForm(scored) ?? { mean: 0, matches: scored.length, entries: [] },
+    ...(swIds.length ? { switch: placeMatches(scored, swIds) } : {}),
+  };
   const inserted = await q(`insert into nights (user_id, brief_date, report) values ($1, $2, $3::jsonb) on conflict do nothing returning user_id`, [user.id, date, JSON.stringify(report)]);
   if (inserted.length) {
     const text = nightMemory(report, windowLabel(user));

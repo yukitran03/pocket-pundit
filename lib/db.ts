@@ -135,6 +135,7 @@ const SCHEMA = [
   `alter table users add column if not exists own_since timestamptz`,
   `alter table memory_jobs add column if not exists account_id text`,
   `alter table memory_jobs add column if not exists archived boolean not null default false`,
+  `alter table scans add column if not exists switch jsonb`, // the memory switch, stored at brief time (lib/picker.ts)
   `create table if not exists alerts (
     user_id bigint not null,
     match_id text not null,

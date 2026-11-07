@@ -158,8 +158,39 @@ export interface MeResponse {
   };
   memories: MemoryRow[]; // newest first
   ab: { memory: ArmStats; control: ArmStats };
+  // The same evening ranked with memory on and with memory off (stored at brief time), newest first. Sealed (lists
+  // left out of the response) until that night's picks have finished, so it can't give away the memory-off pick.
+  memorySwitch?: SwitchNight[];
   shares: { username: string; since: string }[];
   currentWalrusEpoch?: number; // latest Walrus epoch seen on-chain (via Tatum), for expiry countdowns
+}
+
+export interface SwitchRow {
+  matchId: string;
+  home: string;
+  away: string;
+  competition: string;
+  kickoff: string;
+  base: number; // memory-off score (0..100)
+  mem: number; // memory-on score
+  rankOn: number; // rank among every match considered that evening, memory on
+  rankOff: number; // … memory off
+  why: string | null; // why memory moved it; null when both lists agree
+  cites: Cite[]; // the Walrus memories behind `why`
+  picked: boolean; // it was one of the three picks sent that evening
+  rating: Rating | null; // the viewer's rating, when picked and rated
+  drama: number | null; // what happened, from the night report (null before it, or no result in the feed)
+  nightRank: number | null; // rank among the night's finished matches
+}
+
+export interface SwitchNight {
+  date: string;
+  sealed: boolean;
+  changed: number; // memory-on picks the memory-off ranking would not have made (0..3)
+  considered: number;
+  scored: number | null; // finished matches in the night report, once there is one
+  on: SwitchRow[]; // empty while sealed
+  off: SwitchRow[];
 }
 
 export interface StatsResponse {
@@ -172,6 +203,8 @@ export interface StatsResponse {
   // Night reports: every finished match in a viewer's window ranked by drama after the fact, and where the picks
   // (locked on Walrus before kick-off) landed. byArm counts only nights whose picks have all been answered.
   nights?: { nights: number; caught: number; top3Nights: number; byArm: { nights: number; memory: number; control: number } };
+  // Memory switch across every brief: of the memory-on top three, how many the memory-off ranking would have missed.
+  switch?: { briefs: number; changed: number; slots: number };
   // Anonymised and spoiler-free. headline/detail are ready to show; text is the raw memory sentence (no tags).
   recentLessons: { text: string; createdAt: string; blobId: string | null; kind?: "rating" | "lesson"; verdict?: Rating | null; headline?: string; detail?: string }[];
   updatedAt: string;

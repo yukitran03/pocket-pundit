@@ -279,6 +279,38 @@ describe("a night, end to end", () => {
     if (l1) expect(l1.c.contribs.find((x: any) => x.key === `cal:${L1.compId}`).value).toBeLessThan(0);
   });
 
+  it("the brief stores the memory switch, and the dashboard keeps it sealed until that night's picks are answered", async () => {
+    const D1 = new Date(Date.parse(`${D}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    const [s] = await L.db.q(`select switch from scans where user_id = $1 and brief_date = $2`, [UID, D1]);
+    expect(s.switch.on).toHaveLength(3);
+    expect(s.switch.off).toHaveLength(3);
+    expect(s.switch.considered).toBe(3);
+
+    let me = await L.views.meView(UID);
+    const sealed = me.memorySwitch.find((x: any) => x.date === D1);
+    expect(sealed).toMatchObject({ sealed: true, on: [], off: [] }); // nothing in the response that could point at the memory-off pick
+    // The lock carries the brief's message, so the tick can reply with the blob and Sui's certification time.
+    const [lock] = await L.db.q(`select notify_chat, notify_message from memory_jobs where idem_key = $1`, [`mf:brief:${UID}:${D1}`]);
+    expect(Number(lock.notify_chat)).toBe(UID);
+    expect(Number(lock.notify_message)).toBeGreaterThan(0);
+
+    await L.db.q(`update picks set rating = 'fine', rated_at = now() where user_id = $1 and brief_date = $2`, [UID, D1]);
+    me = await L.views.meView(UID);
+    const open = me.memorySwitch.find((x: any) => x.date === D1);
+    expect(open.sealed).toBe(false);
+    const picked = new Set((await L.db.q(`select match_id from picks where user_id = $1 and brief_date = $2`, [UID, D1])).map((r: any) => r.match_id));
+    const rows = [...open.on, ...open.off];
+    for (const r of rows) expect(r.picked).toBe(picked.has(r.matchId));
+    // Memory picks are the top two with memory and the control is the best memory-off match left, so every pick
+    // sits in one of the two lists.
+    for (const id of picked) expect(rows.some((r: any) => r.matchId === id)).toBe(true);
+    const { switchLine } = await import("../lib/lock.ts");
+    expect(await switchLine(UID, D1)).toMatch(/^🧠 Memory switch: with memory off, tonight's top three would have/);
+    await L.db.q(`delete from kv where k like 'view:stats%'`);
+    const st = (await L.views.statsView()).switch;
+    expect(st).toMatchObject({ briefs: 1, changed: s.switch.changed, slots: 3 }); // counts only, never the lists
+  });
+
   it("public stats count the night, but keep arms out until every pick is answered", async () => {
     await L.db.q(`delete from kv where k like 'view:stats%'`);
     let s = (await L.views.statsView()).nights;

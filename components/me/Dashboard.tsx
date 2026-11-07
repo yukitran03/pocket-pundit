@@ -17,6 +17,7 @@ import { TasteRoom } from "./TasteRoom";
 import { MemoryTable, memKey } from "./MemoryTable";
 import { SettingsForm, TeachForm } from "./Forms";
 import { TokenHelp } from "./TokenHelp";
+import { MemorySwitch } from "./MemorySwitch";
 
 /** Optional, backward-compatible extension the API may add (see docs/DESIGN.md). */
 type MeResponseExt = MeResponse & { currentWalrusEpoch?: number | null };
@@ -107,7 +108,7 @@ function DashboardView({ data, source, token, mutate }: { data: MeResponseExt; s
         </div>
         <nav aria-label="Dashboard sections" className="shell">
           <ul className="-mb-px flex gap-1 overflow-x-auto pb-px text-sm [scrollbar-width:none]">
-            {[["tonight", "Tonight"], ["progress", "Since day 1"], ["learned", "Your taste"], ["ab", "A/B"], ["memory", "Memory"], ["teach", "Teach"], ["settings", "Settings"]].map(([id, l]) => (
+            {[["tonight", "Tonight"], ["progress", "Since day 1"], ["learned", "Your taste"], ["ab", "A/B"], ["switch", "Memory switch"], ["memory", "Memory"], ["teach", "Teach"], ["settings", "Settings"]].map(([id, l]) => (
               <li key={id}><a href={`#${id}`} className="block whitespace-nowrap border-b-2 border-transparent px-3 py-3 text-chalk-3 hover:border-line-strong hover:text-chalk">{l}</a></li>
             ))}
           </ul>
@@ -184,8 +185,13 @@ function DashboardView({ data, source, token, mutate }: { data: MeResponseExt; s
         <ArmCompare memory={ab.memory} control={ab.control} scope="you" />
       </Block>
 
+      {/* ---------------------------------------------------------- memory switch */}
+      <Block id="switch" index="05" title="Memory switch" note="The same evening ranked with your memories and with memory off. The difference is what Walrus memory changed.">
+        <MemorySwitch nights={data.memorySwitch ?? []} tz={user.tz} />
+      </Block>
+
       {/* ---------------------------------------------------------- memory wall */}
-      <Block id="memory" index="05" title="Your memory" note="Everything your pundit remembers about you, as stored on Walrus. Search runs a real recall.">
+      <Block id="memory" index="06" title="Your memory" note="Everything your pundit remembers about you, as stored on Walrus. Search runs a real recall.">
         <div className="space-y-5">
           <div ref={roomRef}>
             <TasteRoom items={items} currentEpoch={currentEpoch} epochEstimated={epochEstimated} tz={user.tz} selected={selected} onSelect={setSelected} highlighted={hits} />

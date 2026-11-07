@@ -207,6 +207,96 @@ export function explain(c: Candidate, taste: Taste | null, arm: "memory" | "cont
   return { reasons: [...memoryReasons, ...neutral].slice(0, 3), cites, neutral: neutral.slice(0, 2), memoryReasons };
 }
 
+// ---------- memory switch: the same evening ranked with memory on and with memory off ----------
+
+export interface SwitchEntry {
+  matchId: string;
+  home: string;
+  away: string;
+  competition: string;
+  kickoff: string;
+  base: number; // memory-off score
+  mem: number; // memory-on score
+  rankOn: number; // 1-based rank among every candidate, memory on
+  rankOff: number; // … and memory off
+  why: string | null; // why memory moved it (null when both lists agree on it)
+  cites: Cite[];
+}
+
+export interface MemorySwitch {
+  on: SwitchEntry[]; // the top three with the viewer's memories
+  off: SwitchEntry[]; // the top three with memory off
+  changed: number; // how many of the memory-on three the memory-off ranking would not have picked
+  considered: number;
+}
+
+/** Why memory pushed a match down: its most negative learned weight, in words. */
+function dropReason(c: Candidate, taste: Taste | null): { why: string; cites: Cite[] } {
+  const neg = [...c.contribs].filter((x) => x.value < -0.02).sort((a, b) => a.value - b.value)[0];
+  if (!neg || !taste) return { why: "Other matches rose above it on your memories.", cites: [] };
+  const w = taste.weights.get(neg.key)!;
+  const n = w.evidence;
+  const mem = `${n} memor${n === 1 ? "y" : "ies"}`;
+  const k = neg.key;
+  const why = k.startsWith("comp:")
+    ? `You've cooled on ${c.label} (${mem}).`
+    : k.startsWith("team:")
+      ? `${k.slice(5).replace(/-/g, " ").replace(/\b\w/g, (x) => x.toUpperCase())} has been in matches you didn't enjoy.`
+      : k.startsWith("signal:")
+        ? `You haven't enjoyed ${signalPhrase(k.slice(7))} (${mem}), and this one has the profile.`
+        : k.startsWith("kick:")
+          ? `Kick-off ${c.localKick} hasn't suited when you watch.`
+          : k.startsWith("cal:")
+            ? `${c.label} has been quieter than the rest of your evenings lately (${n} night report${n === 1 ? "" : "s"}).`
+            : "Your memories ranked it lower.";
+  const cites = [...w.blobs].sort((x, y) => Math.abs(y.contrib) - Math.abs(x.contrib)).slice(0, 2).map((b) => ({ blobId: b.blobId, text: b.text }));
+  return { why, cites };
+}
+
+/**
+ * Pure: rank the same candidates twice and keep the top three of each. The memory-off list is exactly what the
+ * pundit would pick with no memories; the difference is what Walrus memory changed tonight.
+ */
+export function memorySwitch(cands: Candidate[], taste: Taste | null, n = 3): MemorySwitch {
+  // Ties break on kick-off, never on the other score: the memory-off list must not see memory at all.
+  const neutral = (a: Candidate, b: Candidate) => a.f.kickoff.localeCompare(b.f.kickoff) || a.f.matchId.localeCompare(b.f.matchId);
+  const byOn = [...cands].sort((a, b) => b.mem - a.mem || neutral(a, b));
+  const byOff = [...cands].sort((a, b) => b.base - a.base || neutral(a, b));
+  const rankOn = new Map(byOn.map((c, i) => [c.f.matchId, i + 1]));
+  const rankOff = new Map(byOff.map((c, i) => [c.f.matchId, i + 1]));
+  const onIds = new Set(byOn.slice(0, n).map((c) => c.f.matchId));
+  const offIds = new Set(byOff.slice(0, n).map((c) => c.f.matchId));
+  const entry = (c: Candidate, side: "on" | "off"): SwitchEntry => {
+    const both = onIds.has(c.f.matchId) && offIds.has(c.f.matchId);
+    let why: string | null = null;
+    let cites: Cite[] = [];
+    if (!both && side === "on") {
+      const e = explain(c, taste, "memory");
+      why = e.memoryReasons[0] ?? null;
+      cites = e.cites.slice(0, 2);
+    } else if (!both) ({ why, cites } = dropReason(c, taste));
+    return {
+      matchId: c.f.matchId,
+      home: c.f.home,
+      away: c.f.away,
+      competition: c.label,
+      kickoff: c.f.kickoff,
+      base: Math.round(clamp(c.base, 0, 100)),
+      mem: Math.round(clamp(c.mem, 0, 100)),
+      rankOn: rankOn.get(c.f.matchId)!,
+      rankOff: rankOff.get(c.f.matchId)!,
+      why,
+      cites,
+    };
+  };
+  return {
+    on: byOn.slice(0, n).map((c) => entry(c, "on")),
+    off: byOff.slice(0, n).map((c) => entry(c, "off")),
+    changed: [...onIds].filter((id) => !offIds.has(id)).length,
+    considered: cands.length,
+  };
+}
+
 export interface BriefResult {
   briefDate: string;
   picks: { id: string; slot: number; arm: "memory" | "control"; c: Candidate; reasons: string[]; neutral: string[]; cites: Cite[]; score: number }[];
@@ -289,6 +379,13 @@ export async function buildBrief(user: UserRow, now = new Date()): Promise<Brief
     );
     if (inserted.length) picks.push({ id, slot: i + 1, arm, c, reasons, neutral, cites, score });
   }
-  await q(`insert into scans (user_id, brief_date, considered) values ($1,$2,$3) on conflict (user_id, brief_date) do update set considered = excluded.considered`, [user.id, date, fixtures.length]);
+  // The memory switch is stored once, at brief time, with the taste the picks were made from (a later taste would
+  // rewrite history). Only memory-on picks exist when there is a taste; on day one both lists match.
+  const sw = memorySwitch(cands, taste);
+  await q(
+    `insert into scans (user_id, brief_date, considered, switch) values ($1,$2,$3,$4::jsonb)
+     on conflict (user_id, brief_date) do update set considered = excluded.considered, switch = coalesce(scans.switch, excluded.switch)`,
+    [user.id, date, fixtures.length, JSON.stringify(sw)],
+  );
   return { briefDate: date, picks, considered: fixtures.length, recallOk: recall.ok, memoriesUsed: taste?.memoriesUsed ?? 0, recallMs: recall.latencyMs };
 }

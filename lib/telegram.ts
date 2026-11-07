@@ -1,7 +1,7 @@
 // Telegram bot: onboarding, daily brief, post-match rating, teaching. Plain Bot API over fetch.
 import { env } from "./env.ts";
 import { q, one, cacheGet, cacheSet } from "./db.ts";
-import { lockBrief, lockLine } from "./lock.ts";
+import { lockBrief, lockIdem, lockLine } from "./lock.ts";
 import { BRAND } from "./brand.ts";
 import { purposeKey } from "./auth.ts";
 import { askMemory } from "./extras2.ts";
@@ -167,8 +167,11 @@ export async function sendBrief(user: UserRow, now = new Date()) {
   const missed = night ? null : await missedLastNight(user, now).catch(() => null);
   const duo = await duoPick(user as any, now).catch(() => null);
   const days = Math.max(1, Math.floor((now.getTime() - new Date(user.created_at).getTime()) / 86_400_000) + 1);
-  await send(user.chat_id, briefText(user, b, days, missed, duo, night), [[{ text: "Why these picks?", url: dashboardUrl(user.id) }]]);
+  const msg = await send(user.chat_id, briefText(user, b, days, missed, duo, night), [[{ text: "Why these picks?", url: dashboardUrl(user.id) }]]);
   await q(`update users set last_brief_date = $2 where id = $1`, [user.id, b.briefDate]);
+  // Once Walrus stores the lock, the tick replies to this message with the blob and Sui's certification time.
+  if (msg?.message_id)
+    await q(`update memory_jobs set notify_chat = $1, notify_message = $2 where idem_key = $3 and notify_chat is null and notified_at is null`, [user.chat_id, msg.message_id, `mf:${lockIdem(user.id, b.briefDate)}`]).catch(() => {});
   return b;
 }
 
