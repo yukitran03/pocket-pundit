@@ -6,6 +6,7 @@ import { q, one } from "./db.ts";
 import { fixturesBetween, timeline, type Fixture } from "./feed.ts";
 import { computeDrama } from "./drama.ts";
 import { enqueueMemory } from "./memory.ts";
+import { compLabel } from "./picker.ts";
 import { localToUtc } from "./util.ts";
 
 /** Other formats score differently (a 5–3 futsal game isn't a better watch than a 2–1 league game). */
@@ -38,7 +39,8 @@ export interface NightReport {
   date: string;
   scheduled: number; // matches in the window
   scored: number; // of those, finished with a result
-  best: NightMatch | null;
+  best: NightMatch | null; // when a pick shares the top drama, that pick (so "best … one of my picks" is true)
+  tiedBest?: NightMatch[]; // the other matches level with `best` on drama
   picks: NightPick[];
   caughtBest: boolean; // a pick was the night's best (or tied for it)
   top3: number; // picks ranked in the night's top three
@@ -102,7 +104,13 @@ export function formMemory(date: string, windowLabel: string, form: LeagueForm |
   return `[form] ${date} · League form in my ${windowLabel} window, from ${form.matches} finished matches averaging drama ${form.mean}: ${said.join("; ")}. tags: kind=form ${tags}`;
 }
 
-/** Pure: rank the scored matches and place the picks. Ties share a rank (competition ranking). */
+const asMatch = (m: Scored): NightMatch => ({ matchId: m.matchId, home: m.home, away: m.away, competition: m.competition, homeScore: m.homeScore, awayScore: m.awayScore, drama: m.drama });
+
+/**
+ * Pure: rank the scored matches and place the picks. Ties share a rank (competition ranking). When a pick is level
+ * on top, the report names that pick as the best and lists the others it shares the top with, so the sentence
+ * "Best: X, one of my picks" is always about a match that was picked.
+ */
 export function rankNight(date: string, scheduled: number, scored: Scored[], picks: { match_id: string; arm: string; home: string; away: string }[]): NightReport {
   const order = [...scored].sort((a, b) => b.drama - a.drama || b.homeScore + b.awayScore - (a.homeScore + a.awayScore) || a.kickoff.localeCompare(b.kickoff));
   const rankOf = (drama: number) => 1 + order.filter((m) => m.drama > drama).length;
@@ -111,12 +119,16 @@ export function rankNight(date: string, scheduled: number, scored: Scored[], pic
     const m = byId.get(p.match_id);
     return { matchId: p.match_id, arm: p.arm === "control" ? "control" : "memory", home: p.home, away: p.away, rank: m ? rankOf(m.drama) : null, drama: m ? m.drama : null };
   });
-  const top = order[0];
+  const picked = new Set(placed.filter((p) => p.rank === 1).map((p) => p.matchId));
+  const level = order.filter((m) => m.drama === order[0]?.drama);
+  const top = level.find((m) => picked.has(m.matchId)) ?? level[0];
+  const tied = level.filter((m) => m !== top).map(asMatch);
   return {
     date,
     scheduled,
     scored: order.length,
-    best: top ? { matchId: top.matchId, home: top.home, away: top.away, competition: top.competition, homeScore: top.homeScore, awayScore: top.awayScore, drama: top.drama } : null,
+    best: top ? asMatch(top) : null,
+    ...(tied.length ? { tiedBest: tied } : {}),
     picks: placed,
     caughtBest: placed.some((p) => p.rank === 1),
     top3: placed.filter((p) => p.rank !== null && p.rank <= 3).length,
@@ -143,7 +155,15 @@ export function nightMemory(r: NightReport, windowLabel: string): string | null 
   const mine = ranks.length
     ? ` My picks ranked ${ordinal(ranks)}${unranked ? ` (${unranked} had no result in the feed)` : ""}.`
     : " None of my picks had a result in the feed.";
-  return `[night] ${r.date} · Night report for my ${windowLabel} window: ${r.scored} of ${r.scheduled} matches finished with full data. Best: ${b.home} ${b.homeScore}–${b.awayScore} ${b.away} (${b.competition}), drama ${b.drama}, ${r.caughtBest ? "one of my picks" : "not one of my picks"}.${mine} tags: kind=night`;
+  return `[night] ${r.date} · Night report for my ${windowLabel} window: ${r.scored} of ${r.scheduled} matches finished with full data. Best: ${b.home} ${b.homeScore}–${b.awayScore} ${b.away} (${b.competition}), drama ${b.drama}, ${r.caughtBest ? "one of my picks" : "not one of my picks"}${jointWith(r)}.${mine} tags: kind=night`;
+}
+
+/** ", joint best with X 2–1 Y (Comp)" or ", joint best with 3 other matches"; empty when the best stood alone. */
+function jointWith(r: NightReport): string {
+  const t = r.tiedBest ?? [];
+  if (!t.length) return "";
+  if (t.length === 1) return `, joint best with ${t[0].home} ${t[0].homeScore}–${t[0].awayScore} ${t[0].away} (${t[0].competition})`;
+  return `, joint best with ${t.length} other matches`;
 }
 
 const hh = (h: number) => `${String(h % 24).padStart(2, "0")}:00`;
@@ -169,7 +189,8 @@ async function scoreWindow(user: NightUser, date: string, pickIds: Set<string>):
       const ev = await timeline(f.matchId);
       if (ev && ev.length) drama = computeDrama(ev, f.homeScore, f.awayScore).score;
     }
-    scored.push({ matchId: f.matchId, compId: f.compId, home: f.home, away: f.away, competition: f.competition, kickoff: f.kickoff, homeScore: f.homeScore!, awayScore: f.awayScore!, drama });
+    // compLabel adds the country, as on the picks: "Premier League (ARM)", not a bare "Premier League".
+    scored.push({ matchId: f.matchId, compId: f.compId, home: f.home, away: f.away, competition: compLabel(f), kickoff: f.kickoff, homeScore: f.homeScore!, awayScore: f.awayScore!, drama });
   }
   return { all, scored };
 }
@@ -221,9 +242,10 @@ export function nightLine(r: NightReport | null, record: { nights: number; caugh
   const b = r.best;
   const match = showScores ? `${esc(b.home)} ${b.homeScore}–${b.awayScore} ${esc(b.away)}` : `${esc(b.home)} v ${esc(b.away)}`;
   const tally = record && record.nights >= 2 ? `\n<i>Best of the night in your picks: ${record.caught} of ${record.nights} nights so far.</i>` : "";
-  if (r.caughtBest) return `🏆 Last night's best in your window was one of your picks: <b>${match}</b> · drama ${b.drama}${tally}`;
+  const joint = r.tiedBest?.length ? " (joint best)" : "";
+  if (r.caughtBest) return `🏆 Last night's best in your window was one of your picks: <b>${match}</b> · drama ${b.drama}${joint}${tally}`;
   const ranked = r.picks.some((p) => p.rank !== null);
-  return `📼 Last night's best in your window: <b>${match}</b> · drama ${b.drama}. ${ranked ? "Not one of your picks; worth the highlights." : "Worth the highlights."}${tally}`;
+  return `📼 Last night's best in your window: <b>${match}</b> · drama ${b.drama}${joint}. ${ranked ? "Not one of your picks; worth the highlights." : "Worth the highlights."}${tally}`;
 }
 
 /** The brief date before `date` (YYYY-MM-DD). */

@@ -70,10 +70,24 @@ describe("ranking a night (pure)", () => {
       { match_id: "x", arm: "memory", home: "Hx", away: "Ax" },
     ]);
     expect(r.scored).toBe(4);
-    expect(r.best?.matchId).toBe("b"); // 3–2 beats 2–2 on goals at equal drama
+    // b (3–2) would win the goals tie-break, but the pick c is level on drama, so c is the best that gets named:
+    // "Best: X, one of my picks" must always be about a match that was picked.
+    expect(r.best?.matchId).toBe("c");
+    expect(r.tiedBest?.map((m) => m.matchId)).toEqual(["b"]);
     expect(r.picks.map((p) => p.rank)).toEqual([1, 4, null]);
     expect(r.caughtBest).toBe(true);
     expect(r.top3).toBe(1);
+    expect(nightMemory(r, "19:00 to 00:00")).toContain("Best: Hc 2–2 Ac (League), drama 87, one of my picks, joint best with Hb 3–2 Ab (League). My picks ranked #1 and #4 (1 had no result in the feed).");
+    expect(nightLine(r, null, false)).toBe("🏆 Last night's best in your window was one of your picks: <b>Hc v Ac</b> · drama 87 (joint best)");
+  });
+
+  it("a tie on top with no pick in it keeps the goals tie-break and says it was joint", () => {
+    const r = rankNight("2026-11-05", 9, [sm("b", 87, 3, 2), sm("c", 87, 2, 2), sm("e", 87, 1, 1), sm("d", 30)], [{ match_id: "d", arm: "memory", home: "Hd", away: "Ad" }]);
+    expect(r.best?.matchId).toBe("b");
+    expect(r.caughtBest).toBe(false);
+    expect(nightMemory(r, "19:00 to 00:00")).toContain("Best: Hb 3–2 Ab (League), drama 87, not one of my picks, joint best with 2 other matches. My picks ranked #4.");
+    expect(nightLine(r, null, false)).toBe("📼 Last night's best in your window: <b>Hb v Ab</b> · drama 87 (joint best). Not one of your picks; worth the highlights.");
+    expect(rankNight("2026-11-05", 2, [sm("a", 50), sm("b", 40)], []).tiedBest).toBeUndefined();
   });
 
   it("the Walrus sentence never names which pick ran with memory off", () => {
@@ -203,14 +217,14 @@ describe("a night, end to end", () => {
 
     const jobs = await L.db.q(`select text, idem_key from memory_jobs where user_id = $1 and kind = 'night'`, [UID]);
     expect(jobs).toHaveLength(1);
-    expect(jobs[0].text).toMatch(new RegExp(`^\\[night\\] ${D} · Night report for my 19:00 to 02:00 window: 3 of 4 matches finished with full data\\. Best: Northbridge 3–2 Eastvale \\(Premier League\\), drama \\d+, one of my picks\\. My picks ranked #1 and #3 \\(1 had no result in the feed\\)\\.`));
+    expect(jobs[0].text).toMatch(new RegExp(`^\\[night\\] ${D} · Night report for my 19:00 to 02:00 window: 3 of 4 matches finished with full data\\. Best: Northbridge 3–2 Eastvale \\(Premier League \\(XYZ\\)\\), drama \\d+, one of my picks\\. My picks ranked #1 and #3 \\(1 had no result in the feed\\)\\.`));
     expect(jobs[0].text).not.toMatch(/control|memory off|memory-off/i);
     // League form from the same night: Premier League's one match (drama 100) against a night averaging 54 is +0.50
     // after shrinkage; Ligue 1's two (11 and 52) sit below it.
     expect(r.form.entries.map((e: any) => e.compId)).toEqual([EPL.compId, L1.compId]);
     const forms = await L.db.q(`select text from memory_jobs where user_id = $1 and kind = 'form'`, [UID]);
     expect(forms).toHaveLength(1);
-    expect(forms[0].text).toMatch(new RegExp(`^\\[form\\] ${D} · League form in my 19:00 to 02:00 window, from 3 finished matches averaging drama 54: Premier League 100 \\(above\\); Ligue 1 32 \\(below, 2 matches\\)\\. tags: kind=form cal=${EPL.compId}:\\+0\\.50 cal=${L1.compId}:-0\\.38$`));
+    expect(forms[0].text).toMatch(new RegExp(`^\\[form\\] ${D} · League form in my 19:00 to 02:00 window, from 3 finished matches averaging drama 54: Premier League \\(XYZ\\) 100 \\(above\\); Ligue 1 \\(XYZ\\) 32 \\(below, 2 matches\\)\\. tags: kind=form cal=${EPL.compId}:\\+0\\.50 cal=${L1.compId}:-0\\.38$`));
 
     await L.memory.processMemoryQueue(10);
     await L.memory.processMemoryQueue(10);

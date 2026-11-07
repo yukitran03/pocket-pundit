@@ -65,7 +65,7 @@ After the last full time, the bot reveals `salt` and the control's match id. Any
 
 ## Night reports
 
-Once a watch window has closed and results have had 150 minutes to land, every match in it that finished with a score is ranked by drama from the public timeline. Futsal and beach soccer are left out because they score differently. Ties share a rank. The `night` memory records the best match and where the picks landed, without saying which pick ran with memory off. The picks were locked in a `brief` memory before kick-off, so the report can be checked against that lock. The reference implementation is `rankNight` in [lib/night.ts](../lib/night.ts).
+Once a watch window has closed and results have had 150 minutes to land, every match in it that finished with a score is ranked by drama from the public timeline. Futsal and beach soccer are left out because they score differently. Ties share a rank. When a pick is level with other matches on top, the pick is named as the best and the sentence adds "joint best with …", so "one of my picks" is always about a match that was picked. Competition names carry the country, as on the picks ("Premier League (ARM)"). The `night` memory records the best match and where the picks landed, without saying which pick ran with memory off. The picks were locked in a `brief` memory before kick-off, so the report can be checked against that lock. The reference implementation is `rankNight` in [lib/night.ts](../lib/night.ts).
 
 ## League form
 
