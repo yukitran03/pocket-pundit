@@ -4,15 +4,16 @@ Deadline: **10 Nov 2026, 17:00 UTC**. Judging runs 11–16 Nov.
 
 ## Title and track line
 
-- **Title:** Pocket Pundit: the football pundit in your pocket (Track 3, Consumer Apps People Use)
-- **First line of the description:** Track 3: Consumer Apps People Use (recommendation). Also entering Best Walrus Memory.
+- **Title:** Pocket Pundit: the football pundit in your pocket (Track 1, Markets & Sports Prediction)
+- **First line of the description:** Track 1: Markets & Sports Prediction (the track brief lists "Sports companion that learns your leagues and trusted analysts"). Also entering Best Walrus Memory.
+- The form has no track selector, so the track goes in the first line of the description. Judges start from [docs/TOTAL_RECALL.md](TOTAL_RECALL.md).
 
 ## Form fields
 
 | Field | Value |
 |---|---|
 | Project name | Pocket Pundit |
-| Track | Track 3: Consumer Apps People Use |
+| Track | Track 1: Markets & Sports Prediction |
 | Bonus awards | Best Walrus Memory |
 | Live app | https://t.me/finder_matching_bot and https://pocket-pundit.vercel.app |
 | Public repo | https://github.com/yukitran03/pocket-pundit (make it public before submitting) |
@@ -29,14 +30,15 @@ Deadline: **10 Nov 2026, 17:00 UTC**. Judging runs 11–16 Nov.
 
 ## Short description (about 600 characters)
 
-> Every evening Pocket Pundit reads the day's 400+ football fixtures and sends you the three worth your time on Telegram, inside the hours you can actually watch and without spoilers. After full time, one tap tells it how the match was. It checks what really happened and writes what it learned to your Walrus Memory on Sui mainnet. Tomorrow's picks cite those memories. Every night is a blind A/B test: two picks use memory, one doesn't, and the brief is locked on Walrus before kick-off, with lock times verified on Sui through Tatum. You can export your taste, or move it to an account your own wallet controls.
+> Every evening Pocket Pundit reads the day's 400+ football fixtures and sends you the three worth your time on Telegram, inside the hours you can actually watch and without spoilers. After full time, one tap tells it how the match was. It checks what really happened and writes what it learned to your Walrus Memory on Sui mainnet. Tomorrow's picks cite those memories. Every evening is ranked twice, with memory on and off, so you can see exactly what memory changed. Every night is also a blind A/B test: two picks use memory, one doesn't, and the brief is locked on Walrus before kick-off, with its certification time read from Sui through Tatum. You can export your taste, or move it to an account your own wallet controls.
 
 ## What judges can check in two minutes
 
 1. Open https://pocket-pundit.vercel.app/proof. It reads the MemWalAccount, its delegate keys and every Walrus Blob object live through Tatum gRPC, and matches them to the memories the agent says it stored.
 2. Start https://t.me/finder_matching_bot and run the four setup taps. Tonight's three picks arrive, and the brief is locked on Walrus.
 3. Send `/ask which leagues do I enjoy?`, which runs a semantic recall over your own namespace. Send `/card`, `/calendar`, `/duo`, `/export` or `/own` to try the rest.
-4. Read [docs/MEMORY-FORMAT.md](MEMORY-FORMAT.md) for the memory format and taste rules, and [docs/PROOF.md](PROOF.md) for an on-chain snapshot.
+4. Open `/me` from the bot's "Why these picks?" button: the Memory switch shows the same evening with memory on and off.
+5. Read [docs/TOTAL_RECALL.md](TOTAL_RECALL.md) for criteria and evidence, [docs/MEMORY-FORMAT.md](MEMORY-FORMAT.md) for the memory format and taste rules, and [docs/PROOF.md](PROOF.md) for an on-chain snapshot.
 
 ## Before submitting
 
@@ -46,6 +48,7 @@ Deadline: **10 Nov 2026, 17:00 UTC**. Judging runs 11–16 Nov.
 - [ ] Record the video ([docs/VIDEO.md](VIDEO.md)) and upload it, unlisted is fine.
 - [ ] Publish the blog ([docs/BLOG.md](BLOG.md)) and the social post ([docs/SOCIAL.md](SOCIAL.md)).
 - [ ] Fill in the Tatum ID.
-- [ ] Ask on Discord whether Track 3 is right for a recommendation app, and how the per-person submission rule applies.
+- [ ] Ask on Discord whether Track 1 fits (the brief's example is a sports companion that learns your leagues).
+- [ ] The rules allow one submission per person: confirm with the Aquahab team that this entry and theirs list different people.
 - [ ] Submit before 10 Nov, 17:00 UTC.
 - [ ] After the hackathon, rotate the Vercel token, Telegram token, delegate key and Neon password.

@@ -2,7 +2,7 @@
 
 **The football pundit in your pocket.**
 
-**Total Recall (Tatum × Walrus) · Track 3: Consumer Apps People Use (recommendation) · also for Best Walrus Memory**
+**Total Recall (Tatum × Walrus) · Track 1: Markets & Sports Prediction · also for Best Walrus Memory** · judges: start at [docs/TOTAL_RECALL.md](docs/TOTAL_RECALL.md)
 
 Pocket Pundit is a personal football pundit on Telegram. Every evening it reads the day's fixtures, often 400 or more, and sends you the three worth your time. It only picks matches inside the hours you can actually watch, and it never spoils a score. After full time, one tap tells it how the match was. It checks what really happened in the match and keeps what it learned in **your own memory: encrypted on Walrus, verifiable on Sui mainnet**. Tomorrow's picks use that memory, and every pick cites the memories that shaped it.
 
@@ -32,6 +32,7 @@ It also learns from every match in your window, not just the three you rated. Ea
 
 ## Why you can trust a pick
 
+- **See exactly what memory changed.** Every evening is ranked twice at brief time: with your Walrus memories and with memory off. Your dashboard shows both top threes side by side, why memory moved each match (with the blobs behind it), and, the next morning, how each one actually went.
 - **Blind A/B, every night.** Two picks use your memory. One is the same agent with memory switched off. The brief shows only neutral reasons. After you rate a match, the bot tells you which kind of pick it was and which memories it cited.
 - **Locked before kick-off.** Each brief is written to Walrus before the first match starts. Which pick was the memory-off control is sealed as a sha256 commit. After the last full time, the bot reveals the salt, so you can recompute `sha256("<date>|control=<match>|<salt>")` yourself. The `/proof` page reads each lock's **certification time on Sui through Tatum** (`GetObject` → `previous_transaction` → `GetTransaction`) and shows how many minutes before kick-off it landed.
 - **Your memory is yours.** There is no other copy of your taste. If recall returns nothing, the agent genuinely knows nothing.
@@ -168,6 +169,7 @@ flowchart LR
 | Ownership (optional) | `/own` opens a page that uses the Wallet Standard (no JSON-RPC): the viewer's wallet calls `account::create_account` and `account::add_delegate_key` itself. The server finds the account with Tatum GraphQL (`AccountCreated` event) and verifies the key with Tatum gRPC `GetObject` before switching that viewer's writes and recalls to their account. Removing the key is detected at the next brief ([lib/own.ts](lib/own.ts)) |
 | Portability | Memories follow a documented sentence + tags format ([docs/MEMORY-FORMAT.md](docs/MEMORY-FORMAT.md)); `/export` downloads a taste passport any app can rebuild the same taste from |
 | Blind A/B + locks | Two memory picks and one memory-off control, shuffled, with neutral reasons only. The brief is locked on Walrus before kick-off, with the control sealed by a commit that is revealed after the last full time ([lib/lock.ts](lib/lock.ts)) |
+| Memory switch | At brief time every candidate is scored with memory on and off and both top threes are stored. `/me` shows them once that night's picks have finished (sealed before, so it can't point at the memory-off pick); the night report adds each one's drama and rank; the bot sums it up after the last rating ([lib/picker.ts](lib/picker.ts) `memorySwitch`) |
 | Night reports + league form | Once a window closes, every finished match in it is ranked by drama from the public timeline. A `[night]` memory records where the picks landed (no arms, so the seal holds). A `[form]` memory scores each competition against the night's average, shrunk for small samples. Memory-on picks read league form back, worth at most 16 of 100 points. The record ("night's best caught") is on the landing page and in `/api/stats` ([lib/night.ts](lib/night.ts)) |
 
 ## Bot commands

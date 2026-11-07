@@ -1,6 +1,6 @@
 # Pocket Pundit: a football pundit that remembers you, on Walrus and Sui
 
-*Built for Total Recall (Tatum × Walrus). Track 3: Consumer Apps People Use. Also entering Best Walrus Memory.*
+*Built for Total Recall (Tatum × Walrus). Track 1: Markets & Sports Prediction. Also entering Best Walrus Memory.*
 
 On a normal weekday there are more than 400 professional football matches. If you live in Ho Chi Minh City and love European football, the ones you care about often kick off at 2 or 3 in the morning. So every evening you do the same thing: scroll fixtures, guess which game will be worth losing sleep over, dodge spoilers the next morning, and still miss the thriller that happened somewhere else.
 
@@ -48,6 +48,8 @@ To stop anyone (us included) from rewriting history after the results are in, th
 
 The landing page shows the A/B result as it stands. If memory stops helping, that chart will say so.
 
+Ratings only cover the three matches you were sent, so we also keep the counterfactual. When the brief is made, every match in your window is scored twice, once with your memories and once with memory off, and both top threes are stored. Once that night's picks have finished, your dashboard shows them side by side: which matches memory brought in, which it dropped and why, the Walrus blobs behind each reason, and the next morning, how every one of the six actually went. The night report ranks every finished match in your window, so a memory-off favourite that turned into a dull 0–0 shows up too.
+
 ## How Walrus and Tatum do the work
 
 **Walrus Memory** (`@mysten-incubation/memwal`, mainnet relayer):
@@ -77,6 +79,8 @@ Our server then reads the account through Tatum, confirms the key is there, and 
 `/duo` sends a friend an invite link. Once they've joined, each evening's brief includes one extra match chosen for both of your tastes and both of your watch windows, which matters when you live in different time zones. Neither of you sees the other's memories, only the shared pick.
 
 ## Things we had to get right
+
+- **Ties at the top.** On 6 Nov four matches tied for the night's best, one of them a pick, and the report named a different one as "one of my picks". A Walrus memory can't be edited, so the fix writes a correction that supersedes the original, and the original stays on Walrus where anyone can check it. Reports now name the pick when it shares the top.
 
 - **The data feed doesn't settle everything.** The public football API we use fills in results and timelines for some competitions (Premier League, Ligue 1, MLS, J1, V.League) and leaves others marked "scheduled" forever. We measure coverage per competition over the last week and prefer competitions that get settled, on both arms of the A/B so it stays fair. For a match without a result, the bot still asks how it was.
 - **Scheduling on a hobby plan.** Vercel Hobby crons run once a day, and GitHub's scheduler skipped hours. The heartbeat now runs on Vercel Queues: every pass schedules the next one, five minutes out while matches, reminders or memory writes are in motion and on the half hour when nothing is due, so the free database can scale to zero between beats. The chain follows each new deployment.

@@ -29,7 +29,8 @@ export function LiveNumbers() {
     { label: "Fixtures checked", value: d?.matchesScanned, note: "across every brief" },
     // Ranked the morning after: every finished match in the viewer's window by drama, picks locked beforehand.
     { label: "Night's best caught", value: d ? d.nights?.caught ?? 0 : undefined, note: d?.nights?.nights ? `of ${fmtInt(d.nights.nights)} ${d.nights.nights === 1 ? "night" : "nights"} ranked after full time` : "ranked after full time" },
-    { label: "Top-3 nights", value: d ? d.nights?.top3Nights ?? 0 : undefined, note: "a top-3 match of the night was a pick" },
+    // Memory switch: each evening ranked with memory on and off at brief time (counts only; the lists stay private).
+    { label: "Picks memory changed", value: d ? d.switch?.changed ?? 0 : undefined, note: d?.switch?.slots ? `of ${fmtInt(d.switch.slots)} memory-on picks, ones memory off wouldn’t have made` : "same evening, ranked with memory on and off" },
   ];
 
   return (
