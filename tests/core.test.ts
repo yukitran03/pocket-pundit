@@ -72,8 +72,9 @@ describe("util", () => {
 
 describe("redaction", () => {
   it("removes credential-shaped strings before anything reaches the relayer", () => {
-    const r = redact("my tatum key t-6ae8baa883bcbcacf72047db-0123456789abcdef0123456789abcdef and email me@x.io");
-    expect(r.removed).toBe(2);
-    expect(r.text).not.toMatch(/t-6ae8|me@x\.io/);
+    // Fake keys in both shapes: t-<24 hex>-<24 hex> (current) and t-<24 hex>-<32 hex> (older).
+    const r = redact("my tatum key t-0123456789abcdef01234567-89abcdef0123456789abcdef, old t-fedcba9876543210fedcba98-0123456789abcdef0123456789abcdef and email me@x.io");
+    expect(r.removed).toBe(3);
+    expect(r.text).not.toMatch(/t-0123|t-fedc|me@x\.io/);
   });
 });

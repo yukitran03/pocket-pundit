@@ -44,7 +44,7 @@ export function namespaceFor(userId: number | string): string {
 
 const SECRET_PATTERNS = [
   /\b(sk|pk|rk)[-_][A-Za-z0-9]{16,}/g,
-  /\bt-[0-9a-f]{24}-[0-9a-f]{32}\b/gi, // Tatum keys
+  /\bt-[0-9a-f]{24}-[0-9a-f]{24,32}\b/gi, // Tatum keys: t-<24 hex>-<24 hex> (older ones end in 32 hex)
   /\b\d{8,10}:[A-Za-z0-9_-]{30,}\b/g, // Telegram bot tokens
   /\b0x[0-9a-f]{64}\b/gi, // 32-byte hex (private keys)
   /\b[0-9a-f]{64}\b/gi,
