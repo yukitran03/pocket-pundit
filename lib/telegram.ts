@@ -136,7 +136,9 @@ export function briefText(user: UserRow, b: BriefResult, dayIndex: number, misse
   const lines = [`<b>⚽ Tonight's picks</b> · day ${dayIndex}`, `${b.considered} fixtures checked for ${hh(user.window_start)} to ${hh(user.window_end)}`, ""];
   for (const p of [...b.picks].sort((a, c) => a.slot - c.slot)) {
     lines.push(`<b>${p.slot} · ${esc(p.c.localKick)}  ${esc(p.c.f.home)} v ${esc(p.c.f.away)}</b>`);
-    lines.push(`${esc(p.c.label)} · ${p.score}/100${p.neutral[0] ? `\n<i>${esc(p.neutral[0])}</i>` : ""}`);
+    // No score here: memory picks score with memory and the memory-off pick without it, so the number would point at
+    // the control. It shows once a pick is rated.
+    lines.push(`${esc(p.c.label)}${p.neutral[0] ? `\n<i>${esc(p.neutral[0])}</i>` : ""}`);
     lines.push("");
   }
   if (!b.picks.length) lines.push("Nothing kicks off in your window tonight. I'll look again tomorrow.", "");
@@ -376,7 +378,9 @@ async function picksCommand(u: any) {
   const lines = [stillTonight ? "<b>⚽ Tonight's picks</b>" : "<b>⚽ Last night's picks</b>", ...(stillTonight ? [] : [`Tonight's arrive at ${hh(u.brief_hour)}.`]), ""];
   for (const p of rows) {
     lines.push(`<b>${p.slot} · ${esc(fmtLocalTime(new Date(p.kickoff).toISOString(), u.tz))}  ${esc(p.home)} v ${esc(p.away)}</b>`);
-    lines.push(`${esc(p.competition)} · ${Math.round(p.score)}/100${p.rating ? ` · you: ${RATED[p.rating] ?? p.rating}` : ""}`);
+    // The score only once the pick is rated or settled (before that it would give away the memory-off pick).
+    const open = !p.rating && !p.settled_at;
+    lines.push(`${esc(p.competition)}${open ? "" : ` · ${Math.round(p.score)}/100`}${p.rating ? ` · you: ${RATED[p.rating] ?? p.rating}` : ""}`);
     lines.push("");
   }
   return send(u.chat_id, lines.join("\n").trim(), [[{ text: "Why these picks?", url: dashboardUrl(u.id) }]]);

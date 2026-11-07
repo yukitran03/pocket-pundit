@@ -18,6 +18,9 @@ function toPick(p: any, now = Date.now(), locks?: Map<string, Lock>): Pick {
   const k = new Date(p.kickoff).getTime();
   const settled = !!p.settled_at;
   const status = settled ? "finished" : k > now ? "upcoming" : "live";
+  // Blind until rated or settled: the score and the up-front reasons would otherwise give away the memory-off pick
+  // (memory picks score with memory and lead with a memory reason). The cited memories stay behind a warned fold.
+  const blind = !p.rating && !settled;
   return {
     id: p.id,
     briefDate: p.brief_date,
@@ -31,8 +34,8 @@ function toPick(p: any, now = Date.now(), locks?: Map<string, Lock>): Pick {
     homeScore: p.home_score,
     awayScore: p.away_score,
     status,
-    score: Math.round(Number(p.score)),
-    reasons: p.reasons ?? [],
+    score: blind ? null : Math.round(Number(p.score)),
+    reasons: blind ? (p.features?.neutral ?? []) : (p.reasons ?? []),
     cites: p.cites ?? [],
     rating: p.rating,
     drama: p.drama,

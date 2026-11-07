@@ -42,7 +42,7 @@ export function PickCard({ pick, tz, openCites = false, sampleLabel, showTz = fa
               {pick.competition}
             </span>
           </p>
-          <WorthRing value={pick.score} tone={tone} size={50} />
+          {pick.score !== null ? <WorthRing value={pick.score} tone={tone} size={50} /> : null}
         </div>
 
         {/* 2. Who, and when: the versus screen */}

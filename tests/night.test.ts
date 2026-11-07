@@ -266,6 +266,7 @@ describe("a night, end to end", () => {
     expect(text).toMatch(/🏆 Last night's best in your window was one of your picks: <b>Northbridge v Eastvale<\/b> · drama \d+/);
     expect(text).not.toMatch(/3–2/);
     expect(text).not.toMatch(/—/);
+    expect(text).not.toMatch(/\/100/); // a score would point at the memory-off pick (memory picks score with memory)
 
     const [form] = await L.db.q(`select blob_id from memory_jobs where user_id = $1 and kind = 'form' and status = 'stored'`, [UID]);
     const epl = b.picks.find((p: any) => p.c.f.matchId === next.id);
@@ -289,6 +290,15 @@ describe("a night, end to end", () => {
     let me = await L.views.meView(UID);
     const sealed = me.memorySwitch.find((x: any) => x.date === D1);
     expect(sealed).toMatchObject({ sealed: true, on: [], off: [] }); // nothing in the response that could point at the memory-off pick
+    // The picks themselves stay blind on the dashboard too: no score, and only neutral reasons up front.
+    const blind = [...me.today, ...me.history].filter((p: any) => p.briefDate === D1);
+    expect(blind).toHaveLength(3);
+    for (const p of blind) {
+      expect(p.arm).toBeNull();
+      expect(p.score).toBeNull();
+      expect(p.reasons.length).toBeGreaterThan(0);
+      expect(p.reasons.join(" ")).not.toMatch(/memor|enjoyed|more dramatic than|suits when you/i);
+    }
     // The lock carries the brief's message, so the tick can reply with the blob and Sui's certification time.
     const [lock] = await L.db.q(`select notify_chat, notify_message from memory_jobs where idem_key = $1`, [`mf:brief:${UID}:${D1}`]);
     expect(Number(lock.notify_chat)).toBe(UID);
@@ -298,6 +308,7 @@ describe("a night, end to end", () => {
     me = await L.views.meView(UID);
     const open = me.memorySwitch.find((x: any) => x.date === D1);
     expect(open.sealed).toBe(false);
+    for (const p of [...me.today, ...me.history].filter((x: any) => x.briefDate === D1)) expect(typeof p.score).toBe("number"); // rated: the score shows
     const picked = new Set((await L.db.q(`select match_id from picks where user_id = $1 and brief_date = $2`, [UID, D1])).map((r: any) => r.match_id));
     const rows = [...open.on, ...open.off];
     for (const r of rows) expect(r.picked).toBe(picked.has(r.matchId));

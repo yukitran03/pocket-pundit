@@ -73,4 +73,5 @@ The certification times come from Tatum gRPC: `LedgerService/GetObject` gives th
 - There are only a few real viewers so far, so the A/B shows that the loop works, not a settled effect size.
 - The public football feed settles some competitions only. Picks prefer competitions it settles, on both arms alike.
 - The hosted Walrus Memory relayer sees plaintext while it embeds and encrypts, which is the default path. Nothing credential-shaped is written.
+- Until 8 Nov the brief showed each pick's 0–100 score. Memory picks are scored with memory, so the memory-off pick usually had the lowest number, and those first ratings weren't fully blind. The brief and the dashboard now hide the score, and lead with neutral reasons only, until a pick is rated.
 - A Walrus memory can't be edited. The 6 Nov night report named the wrong match when four matches tied for the best, so a correction memory now supersedes it, and the original stays on Walrus where anyone can check it.

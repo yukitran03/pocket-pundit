@@ -37,8 +37,8 @@ export interface Pick {
   homeScore: number | null;
   awayScore: number | null;
   status: PickStatus;
-  score: number; // the agent's 0..100 "worth watching" score
-  reasons: string[];
+  score: number | null; // the agent's 0..100 "worth watching" score; null while the pick is blind (unrated, unsettled)
+  reasons: string[]; // neutral reasons only while blind
   cites: Cite[]; // memories recalled from Walrus that shaped this pick (empty for control picks)
   rating: Rating | null;
   drama: Drama | null;

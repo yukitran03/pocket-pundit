@@ -203,6 +203,7 @@ npm run verify                                      # cross-check stored memorie
 
 ## Honest limits
 
+- Until 8 Nov the brief showed each pick's score, and the memory-off pick's was usually the lowest, so those first ratings weren't fully blind. Scores and memory reasons now stay hidden until a pick is rated.
 - The hosted relayer runs Seal decryption and embeddings, so it sees plaintext during writes and recalls (Walrus Memory's default path). Don't write anything you wouldn't tell a server you trust.
 - By default the app operates one Walrus Memory account with a namespace per user, so nobody needs a wallet. Viewers who want custody can move to their own account with `/own`. Memories saved before removing the app's key stay readable by that key (Walrus Memory's forward-only revocation).
 - Memories last as long as their Walrus storage (currently about 15 epochs from write). The TS SDK has no renew yet, so expiry is shown rather than hidden.
