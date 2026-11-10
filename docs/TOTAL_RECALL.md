@@ -24,15 +24,17 @@ Every evening the pundit reads the day's fixtures (often 400 or more), and sends
 | **Every pick cites its memories** | The reasons on each pick link to the Walrus blobs that produced them, and `/ask` runs a semantic recall over your own namespace. | `/me`, `/ask` |
 | **Portable and yours** | `/export` hands over a taste passport in a documented format, and `/own` moves your memory into a Walrus Memory account your own wallet controls. | [docs/MEMORY-FORMAT.md](MEMORY-FORMAT.md), [lib/own.ts](../lib/own.ts) |
 
-### Numbers so far (8 Nov 2026, live at /api/stats)
+### Numbers so far (10 Nov 2026, live at /api/stats)
 
 | | Memory picks | Memory-off picks |
 |---|---|---|
-| Rated | 10 | 5 |
-| Loved / Fine / Bailed / Didn't watch | 7 / 1 / 1 / 1 | 1 / 2 / 1 / 1 |
-| Average rating (Loved 2, Fine 1, Bailed 0) | **1.67** | **1.00** |
+| Rated | 14 | 7 |
+| Loved / Fine / Bailed / Didn't watch | 9 / 3 / 1 / 1 | 2 / 3 / 1 / 1 |
+| Average rating (Loved 2, Fine 1, Bailed 0) | **1.62** | **1.17** |
 
-All 15 picks sent so far were rated. Night reports: the night's best match was among the picks on 2 of 3 ranked nights, both times through the memory-off pick. Memory picks tend to be the matches *this viewer* enjoys rather than the loudest ones: a 0–0 they loved scored drama 0, and a 2–2 they bailed on scored 50. Learning that difference is what memory is for.
+All 21 picks sent so far were rated. Night reports: the night's best match was among the picks on 3 of 6 ranked nights (once through a memory pick, twice through the memory-off pick), and a pick was in the night's top three on 4 of 6. Memory picks tend to be the matches *this viewer* enjoys rather than the loudest ones: a 0–0 they loved scored drama 0, and a 2–2 they bailed on scored 50. Learning that difference is what memory is for.
+
+**Memory switch so far:** recorded on 8 and 9 Nov. On 8 Nov memory changed one of the three: it brought in Sunderland v Chelsea and dropped Rennes v Lille from #1 to #6. Rennes v Lille was sent anyway as the memory-off pick, and the viewer loved it, while Sunderland v Chelsea finished 96th of 125 on drama. Memory got that one wrong, and the record shows it. On 9 Nov only three matches fell in the window, so both lists were the same.
 
 **Honest limit:** these numbers come from very few viewers so far, so they show the loop working, not a statistically settled result. The A/B panel says "too early to call" until each side has ten ratings.
 
@@ -41,7 +43,7 @@ All 15 picks sent so far were rated. Night reports: the night's best match was a
 | Criterion | Weight | Evidence |
 |---|---|---|
 | Walrus and Tatum integration | 30% | Walrus Memory is the product: one HMAC-derived namespace per viewer; typed memories (`rating`, `preference`, `lesson`, `brief`, `night`, `form`); recall on every brief; and corrections that supersede rather than delete. Tatum is how the app reads Sui: native gRPC for the account, delegate keys, every Blob object and the certification time of each lock, and GraphQL for delegate-key and account events. |
-| Technical quality (incl. Tatum Sui RPC) | 30% | 82 tests: unit tests, plus end-to-end runs against a fake football world, a fake Telegram and the SDK's `MemWalMock`. Memory writes go through a queue with idempotency keys, pacing under the relayer limit and backoff up to 12 attempts. Reads are paced for Tatum's rate limits. Picks are scored deterministically, with no LLM in the picking path, so every reason is traceable to a weight and a blob. |
+| Technical quality (incl. Tatum Sui RPC) | 30% | 84 tests: unit tests, plus end-to-end runs against a fake football world, a fake Telegram and the SDK's `MemWalMock`. Memory writes go through a queue with idempotency keys, pacing under the relayer limit and backoff up to 12 attempts. Reads are paced for Tatum's rate limits. Picks are scored deterministically, with no LLM in the picking path, so every reason is traceable to a weight and a blob. |
 | Creativity | 20% | A pundit that shows its own counterfactual: the same evening with memory on and off, sealed before kick-off, checked against what happened, and blind-rated by the viewer. |
 | Presentation | 20% | A working bot and web app, a live `/proof` page, a per-viewer dashboard, this document, [docs/MEMORY-FORMAT.md](MEMORY-FORMAT.md), [docs/PROOF.md](PROOF.md), the blog and the demo video. |
 
@@ -51,7 +53,9 @@ All 15 picks sent so far were rated. Night reports: the night's best match was a
 |---|---|
 | Walrus Memory account (owner, delegate key, active) | [0xc460…7057](https://suiscan.xyz/mainnet/object/0xc460a14354e4b8fd67a710af8d403adbbdb6a1b79df191e7e315557e28217057) |
 | Account owner | [0x9bac…68e3](https://suiscan.xyz/mainnet/account/0x9bacad5b532906701208c0d8a81ee9a78d6c096a68902cf5213bcfaac82e68e3) |
-| Stored memories matched to their Sui Blob objects | 43 of 43 on 7 Nov (live count on /proof) |
+| Stored memories matched to their Sui Blob objects | 60 of 60 on 10 Nov (live count on /proof) |
+| Brief lock, 9 Nov: certified on Sui 240 min before the first kick-off (checkpoint 343,336,202) | [object 0x7675…260a](https://suiscan.xyz/mainnet/object/0x76753ec126557e587900d31dd8668e75c3e5c47b4b547764014e7ea159a9260a) |
+| Brief lock, 8 Nov: certified on Sui 180 min before the first kick-off (checkpoint 342,975,997) | [object 0x908d…cd90](https://suiscan.xyz/mainnet/object/0x908d6d660af5f0f7fa36f2d9da74435e1a51cd84ecb343243bf8d8ca36d0cd90) |
 | Brief lock, 7 Nov: certified on Sui 240 min before the first kick-off | [object 0xce02…e968](https://suiscan.xyz/mainnet/object/0xce02c0ab151afab0091b8072ca75398b5aa5c5f8874ad1d5b2824f857a59e968) |
 | Brief lock, 6 Nov: certified 60 min before the first kick-off | [object 0x512b…d390](https://suiscan.xyz/mainnet/object/0x512bb72ca398f64eccccee7edd4a4365eb928abe944ca3d792835279b0bbd390) |
 | Brief lock, 5 Nov: certified 59 min before the first kick-off | [object 0xd76b…eb5b](https://suiscan.xyz/mainnet/object/0xd76b454e1b0142da532cbaed435d6c43fe8549d9f71adbf35ffcfb45c0feeb5b) |
@@ -74,4 +78,4 @@ The certification times come from Tatum gRPC: `LedgerService/GetObject` gives th
 - The public football feed settles some competitions only. Picks prefer competitions it settles, on both arms alike.
 - The hosted Walrus Memory relayer sees plaintext while it embeds and encrypts, which is the default path. Nothing credential-shaped is written.
 - Until 8 Nov the brief showed each pick's 0–100 score. Memory picks are scored with memory, so the memory-off pick usually had the lowest number, and those first ratings weren't fully blind. The brief and the dashboard now hide the score, and lead with neutral reasons only, until a pick is rated.
-- A Walrus memory can't be edited. The 6 Nov night report named the wrong match when four matches tied for the best, so a correction memory now supersedes it, and the original stays on Walrus where anyone can check it.
+- A Walrus memory can't be edited, so mistakes get a correction memory that supersedes the original, and the original stays on Walrus where anyone can check it. This has happened twice. The 6 Nov night report named the wrong match when four matches tied for the best. The 9 Nov report left out a pick: night reports skip futsal so that a 6–5 futsal game doesn't outrank league matches, but on a quiet night one of the three picks was a futsal game, and the viewer loved it. Picks now always get their place.
