@@ -115,6 +115,19 @@ describe("ranking a night (pure)", () => {
     expect(OTHER_FORMAT.test("CAF Women's Champions League")).toBe(false);
     expect(dayBefore("2026-11-01")).toBe("2026-10-31");
   });
+
+  it("keeps a picked futsal match in the ranking (9 Nov: one of only three in the window)", () => {
+    const futsal = { matchId: "400022498", competition: "Youth Olympic Futsal Tournaments - Men" };
+    expect(L.night.keepForNight(futsal, new Set(["400022498"]))).toBe(true);
+    expect(L.night.keepForNight(futsal, new Set(["other"]))).toBe(false);
+    expect(L.night.keepForNight({ matchId: "x", competition: "NPFL" }, new Set())).toBe(true);
+  });
+
+  it("lessons name signals in words people use", () => {
+    expect(L.tick.labelFor("signal:tense")).toBe("tight games");
+    expect(L.tick.labelFor("signal:late-goals")).toBe("late drama");
+    expect(L.tick.labelFor("kick:evening")).toBe("evening kick-offs");
+  });
 });
 
 describe("league form (pure)", () => {

@@ -10,7 +10,7 @@ import { fmtLocalTime } from "./util.ts";
 import { localParts, localToUtc, walruscan } from "./util.ts";
 import { enqueueMemory } from "./memory.ts";
 import { buildTaste, lessonMemory, parseMemory, humanKey } from "./taste.ts";
-import type { UserRow } from "./picker.ts";
+import { signalPhrase, type UserRow } from "./picker.ts";
 import { KNOWN_COMPS } from "./views.ts";
 import { lockLine, lockedText, suiCertification } from "./lock.ts";
 import { stillOwned } from "./own.ts";
@@ -314,8 +314,10 @@ export async function composeLesson(userId: number, date: string): Promise<strin
   return lessonMemory(date, `After ${rows.length} memories${lean || away ? ":" : "."}${lean}${away}${lean || away ? "." : ""}${abText}`);
 }
 
-function labelFor(k: string) {
+export function labelFor(k: string) {
   if (k.startsWith("comp:")) return KNOWN_COMPS[k.slice(5)] ?? "one competition";
+  // "tight games", not a bare "tense" ("you lean towards evening kick-offs and tense").
+  if (k.startsWith("signal:")) return signalPhrase(k.slice(7));
   return humanKey(k).toLowerCase();
 }
 

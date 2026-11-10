@@ -188,10 +188,14 @@ type NightUser = { id: number; namespace: string; tz: string; window_start: numb
 
 const windowLabel = (u: NightUser) => `${hh(u.window_start)} to ${hh(u.window_end)}`;
 
+/** Which window matches a night ranks: other formats are left out, unless the pundit picked one (on a quiet night a
+ * futsal game can be one of only three in the window, and a pick always gets its place). */
+export const keepForNight = (f: Pick<Fixture, "matchId" | "competition">, pickIds: Set<string>) => !OTHER_FORMAT.test(f.competition) || pickIds.has(f.matchId);
+
 /** Every match in the window (other formats left out), and the finished ones with their drama. */
 async function scoreWindow(user: NightUser, date: string, pickIds: Set<string>): Promise<{ all: Fixture[]; scored: Scored[] }> {
   const { start, end } = windowOf(user, date);
-  const all = (await fixturesBetween(start, end)).filter((f) => !OTHER_FORMAT.test(f.competition));
+  const all = (await fixturesBetween(start, end)).filter((f) => keepForNight(f, pickIds));
   const done = all.filter((f) => f.status === 0 && f.homeScore !== null && f.awayScore !== null);
   // Full drama needs the timeline. Fetch it for the likeliest contenders by score (and every pick); on a very busy
   // night the long tail keeps the score-only estimate.

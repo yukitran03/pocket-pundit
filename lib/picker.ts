@@ -162,7 +162,7 @@ export function scoreCandidates(fixtures: Fixture[], forms: Map<string, TeamForm
   });
 }
 
-function signalPhrase(sig: string): string {
+export function signalPhrase(sig: string): string {
   return (
     {
       "high-scoring": "goals",
