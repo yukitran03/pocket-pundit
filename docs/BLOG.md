@@ -33,7 +33,7 @@ That one is real: [it's on Walrus](https://walruscan.com/mainnet/blob/OEom5xRViy
 
 Before each brief the agent runs a recall against your namespace and turns the tags back into weights for competitions, teams, kinds of match and kick-off times. Older memories count for less (a 21-day half-life). If recall returns nothing, the agent genuinely knows nothing, and it says so on day one.
 
-Every pick cites the memories that shaped it, each linked to its Walrus blob. `/ask which leagues do I enjoy?` runs a semantic recall over your own memories and answers with them. `/card` draws your taste as an image you can share. `/export` downloads all of it as a taste passport, and the format is documented so another app can rebuild the same taste.
+Each memory pick cites the memories that shaped it, each linked to its Walrus blob. `/ask which leagues do I enjoy?` runs a semantic recall over your own memories and answers with them. `/card` draws your taste as an image you can share. `/export` downloads all of it as a taste passport, and the format is documented so another app can rebuild the same taste.
 
 ## Proving memory helps, honestly
 

@@ -13,7 +13,7 @@
 
 - Every evening it reads the day's fixtures (often 200 to 500) and sends **three picks on Telegram**, only inside the hours you can actually watch, with no spoilers.
 - After full time you tap **Loved, Fine, Bailed or Didn't watch**. It checks what really happened from the match timeline and writes the lesson to **your Walrus Memory on Sui mainnet**.
-- The next evening it **recalls those memories** before picking, and every pick cites the Walrus blobs behind it.
+- The next evening it **recalls those memories** before picking, and each memory pick cites the Walrus blobs behind it.
 - Every night is a **blind A/B test**, locked on Walrus before kick-off, with the lock's certification time **read from Sui through Tatum**.
 
 Running on mainnet every evening since 3 Nov 2026. As of 11 Nov: **73 memories** on Walrus, **73 of 73** matched to their Sui objects, **27 of 27** picks rated by the viewer.

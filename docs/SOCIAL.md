@@ -14,7 +14,7 @@ t.me/finder_matching_bot
 2/
 Everything it learns lives in your own Walrus Memory on Sui mainnet: readable sentences, encrypted, one namespace per viewer.
 
-Every pick cites the memories behind it. /ask answers from them, /export hands you all of it.
+Each memory pick cites the memories behind it. /ask answers from them, /export hands you all of it.
 
 3/
 Every night is a blind A/B test. Two picks use memory, one is the same agent with memory off.

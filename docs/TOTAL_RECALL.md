@@ -21,7 +21,7 @@ Every evening the pundit reads the day's fixtures (often 400 or more), and sends
 | **Blind A/B every night** | Two picks use memory, and one is the same agent with memory off. They are shuffled and shown with neutral reasons only. Ratings are collected before the arm is revealed. | [lib/picker.ts](../lib/picker.ts) `buildBrief` |
 | **Sealed before kick-off** | The brief is written to Walrus before the first kick-off. Which pick is the control is sealed as `sha256("<date>\|control=<match>\|<salt>")`, and the salt is revealed after the last full time. The bot replies to each brief with the time **Sui certified it, read through Tatum**. | [lib/lock.ts](../lib/lock.ts) |
 | **Night reports, misses included** | Once your window closes, every finished match in it is ranked by drama from the timeline. A `[night]` memory records where the picks landed, and a `[form]` memory scores each competition against the night's average. Only memory-on picks read league form back. | [lib/night.ts](../lib/night.ts) |
-| **Every pick cites its memories** | The reasons on each pick link to the Walrus blobs that produced them, and `/ask` runs a semantic recall over your own namespace. | `/me`, `/ask` |
+| **Memory picks cite their memories** | The reasons on each memory pick link to the Walrus blobs that produced them, and `/ask` runs a semantic recall over your own namespace. | `/me`, `/ask` |
 | **Portable and yours** | `/export` hands over a taste passport in a documented format, and `/own` moves your memory into a Walrus Memory account your own wallet controls. | [docs/MEMORY-FORMAT.md](MEMORY-FORMAT.md), [lib/own.ts](../lib/own.ts) |
 
 ### Numbers so far (11 Nov 2026, live at /api/stats)
