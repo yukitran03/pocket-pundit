@@ -57,7 +57,11 @@ When the viewer's window closes, every finished match in it is ranked by drama f
 
 ### 4. Locked before kick-off, certified on Sui, read through Tatum
 
-Each brief is written to Walrus before the first kick-off. Which pick is the memory-off control is sealed as `sha256("<date>|control=<match>|<salt>")`, and the salt is revealed after the last full time. The bot's real messages for 8 Nov:
+Each brief is written to Walrus before the first kick-off. Which pick is the memory-off control is sealed as `sha256("<date>|control=<match>|<salt>")`, and the salt is revealed after the last full time.
+
+![The 8 Nov evening in Telegram: the lock reply, then the rating and the reveal](docs/img/telegram.jpg)
+
+*The 8 Nov evening in Telegram, rebuilt for the demo video from the bot's own message formatters and the stored picks and times.* The bot's real messages for that night:
 
 ```text
 🔒 Tonight's picks are locked on Walrus · GgcS86…4Csk
@@ -183,3 +187,4 @@ npm test
 - [docs/MEMORY-FORMAT.md](docs/MEMORY-FORMAT.md): the memory format and taste rules
 - [docs/PROOF.md](docs/PROOF.md): an on-chain snapshot from 5 Nov (the [/proof](https://pocket-pundit.vercel.app/proof) page is the live version)
 - [docs/BLOG.md](docs/BLOG.md): the story behind it
+- [docs/VIDEO.md](docs/VIDEO.md): the demo video's chapters, and where everything on screen comes from
