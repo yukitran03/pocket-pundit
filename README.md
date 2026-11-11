@@ -1,212 +1,185 @@
 # Pocket Pundit
 
-**The football pundit in your pocket.**
+**The football pundit in your pocket.** A Telegram bot that picks the three football matches worth your evening, learns your taste in your own Walrus Memory, and proves every night that the memory helps.
 
-**Total Recall (Tatum × Walrus) · Track 1: Markets & Sports Prediction · also for Best Walrus Memory** · judges: start at [docs/TOTAL_RECALL.md](docs/TOTAL_RECALL.md)
+**Total Recall (Tatum × Walrus) · Track 1: Markets & Sports Prediction · also entering Best Walrus Memory**
 
-Pocket Pundit is a personal football pundit on Telegram. Every evening it reads the day's fixtures, often 400 or more, and sends you the three worth your time. It only picks matches inside the hours you can actually watch, and it never spoils a score. After full time, one tap tells it how the match was. It checks what really happened in the match and keeps what it learned in **your own memory: encrypted on Walrus, verifiable on Sui mainnet**. Tomorrow's picks use that memory, and every pick cites the memories that shaped it.
+[Open the bot](https://t.me/finder_matching_bot) · [Web app](https://pocket-pundit.vercel.app) · [Live proof from Sui](https://pocket-pundit.vercel.app/proof) · [Live numbers](https://pocket-pundit.vercel.app/api/stats) · [Judges' guide](docs/TOTAL_RECALL.md)
+<!-- DEMO_VIDEO -->
 
-- **Bot:** https://t.me/finder_matching_bot
-- **Web:** https://pocket-pundit.vercel.app (includes a live "Tonight" board anyone can use)
-- **Proof (live, read from Sui through Tatum):** https://pocket-pundit.vercel.app/proof · [docs/PROOF.md](docs/PROOF.md)
+![Pocket Pundit landing page](docs/img/hero.jpg)
 
-## Who it's for
+## In 30 seconds
 
-Football fans who love the game but can't watch everything. Many live in Asia, where European football kicks off late at night, so a bad pick costs sleep. Pocket Pundit replaces scrolling, spoilers and missed thrillers with three good choices and one tap.
+- Every evening it reads the day's fixtures (often 200 to 500) and sends **three picks on Telegram**, only inside the hours you can actually watch, with no spoilers.
+- After full time you tap **Loved, Fine, Bailed or Didn't watch**. It checks what really happened from the match timeline and writes the lesson to **your Walrus Memory on Sui mainnet**.
+- The next evening it **recalls those memories** before picking, and every pick cites the Walrus blobs behind it.
+- Every night is a **blind A/B test**, locked on Walrus before kick-off, with the lock's certification time **read from Sui through Tatum**.
 
-## What it saves you
+Running on mainnet every evening since 3 Nov 2026. As of 11 Nov: **73 memories** on Walrus, **73 of 73** matched to their Sui objects, **27 of 27** picks rated by the viewer.
 
-| Without it | With Pocket Pundit |
-|---|---|
-| Scrolling 400+ fixtures to find one worth staying up for | Three picks at the time you choose, inside the hours you can actually watch |
-| Watching 90 minutes of a dead game | A "worth switching on" ping when a match in your window turns tight and late (at most twice a day) |
-| Missing kick-off | A reminder about 20 minutes before each pick, plus a calendar feed that fills itself |
-| Spoilers in every app | Full-time messages hide the score until you've answered |
-| Not knowing which highlights matter | One spoiler-free line opens each brief: last night's best match in your window, and whether it was one of your picks |
-| Explaining your taste to every app | It learns from your taps. `/ask` shows what it knows, `/card` turns it into an image you can share, and `/export` hands you all of it |
-| Agreeing with a friend on what to watch | `/duo` adds one shared pick a night for both of you |
+## What to look at first
 
-Memory tunes every one of those: the leagues you enjoy, the styles you love or bail on (late goals, comebacks, cagey 0–0s), and the kick-off times you really stay up for.
+| | What you'll see | Where |
+|---|---|---|
+| 1 | **Memory switch:** the same evening ranked with memory on and with memory off, side by side, with what actually happened | `/me` dashboard, image below |
+| 2 | **Blind A/B:** memory picks against a hidden memory-off pick, rated before the arm is revealed | [/api/stats](https://pocket-pundit.vercel.app/api/stats) |
+| 3 | **Locked before kick-off:** each brief is written to Walrus first, and the bot replies with the Sui checkpoint that certified it | the bot, [/proof](https://pocket-pundit.vercel.app/proof) |
+| 4 | **Every memory checkable:** /proof reads the memory account and every Walrus Blob object live through Tatum gRPC | [/proof](https://pocket-pundit.vercel.app/proof) |
 
-It also learns from every match in your window, not just the three you rated. Each morning a **night report** ranks every match that finished in your window by what actually happened. It records where your picks landed, misses included, and how each competition did against the rest of the night. Both go to Walrus. The memory-on picks read that **league form** back the next evening; the memory-off pick never does.
+## Proof that memory changes the picks
 
-## Why you can trust a pick
+### 1. Memory switch: what memory changed tonight
 
-- **See exactly what memory changed.** Every evening is ranked twice at brief time: with your Walrus memories and with memory off. Your dashboard shows both top threes side by side, why memory moved each match (with the blobs behind it), and, the next morning, how each one actually went.
-- **Blind A/B, every night.** Two picks use your memory. One is the same agent with memory switched off. The brief shows only neutral reasons. After you rate a match, the bot tells you which kind of pick it was and which memories it cited.
-- **Locked before kick-off.** Each brief is written to Walrus before the first match starts. Which pick was the memory-off control is sealed as a sha256 commit. After the last full time, the bot reveals the salt, so you can recompute `sha256("<date>|control=<match>|<salt>")` yourself. The `/proof` page reads each lock's **certification time on Sui through Tatum** (`GetObject` → `previous_transaction` → `GetTransaction`) and shows how many minutes before kick-off it landed.
-- **Your memory is yours.** There is no other copy of your taste. If recall returns nothing, the agent genuinely knows nothing.
+At brief time every match in the viewer's window is scored twice, with their Walrus memories and with memory off, and both top threes are stored. Once the night's picks have finished, the dashboard shows them side by side: which matches memory brought in, which it dropped, why, the blobs behind each reason, and the next morning, how each one actually went.
 
-## Architecture
+![Memory switch on the dashboard, 8 Nov](docs/img/memory-switch.jpg)
 
-Read left to right: who triggers work, the Vercel routes, the agent core, and the mainnet services it writes to and reads from. The heartbeat is a Vercel Queues message that schedules the next one (`/api/queues/heartbeat`): five minutes out while work is in motion, on the half hour when idle so the database can sleep, with a daily Vercel cron and an hourly GitHub Actions run as backups.
+**8 Nov, a real night, including a miss.** Memory brought in Sunderland v Chelsea and pushed Rennes v Lille from #1 to #6. Rennes v Lille was still sent, as the hidden memory-off pick, and the viewer loved it. Sunderland v Chelsea finished 96th of 125 on drama. Memory got that one wrong, and the record shows it, on Walrus, where it can't be edited.
 
-```mermaid
-flowchart LR
-  classDef user fill:#1d3b2a,stroke:#7fd1a0,color:#e8f1ea
-  classDef app fill:#14202b,stroke:#6aa6d8,color:#e6eef5
-  classDef core fill:#24180f,stroke:#f0531c,color:#fbe9df
-  classDef data fill:#1f1f2e,stroke:#a29bfe,color:#ecebff
-  classDef ext fill:#2b2410,stroke:#e8b84a,color:#fff4d6
+### 2. Blind A/B, every night
 
-  subgraph IN["① Inputs"]
-    direction TB
-    TG["💬 Telegram bot<br/>picks · ratings · /ask · /duo"]:::user
-    WEB["🖥 Web<br/>/ · /me · /proof · /own"]:::user
-    CAL["📅 Calendar apps<br/>subscribed feed"]:::user
-    CRON["⏱ Vercel Queues heartbeat<br/>5 min busy, 30 min idle, self-scheduling"]:::app
-  end
+Two picks use memory. One is the same agent with memory switched off. They are shuffled and shown with the same neutral reasons, and the score is hidden until the viewer rates them.
 
-  subgraph VER["② Vercel · Next.js 16"]
-    direction TB
-    HOOK["/api/telegram<br/>webhook secret"]:::app
-    TICK["/api/cron/tick<br/>bearer secret"]:::app
-    API["/api/tonight · me · stats · proof · own"]:::app
-    OUT["/api/card · /api/cal · /api/me/export<br/>signed keys"]:::app
-  end
+| As of 11 Nov ([live](https://pocket-pundit.vercel.app/api/stats)) | Memory picks | Memory-off picks |
+|---|---|---|
+| Picks rated | 18 | 9 |
+| Loved / Fine / Bailed / Didn't watch | 12 / 3 / 2 / 1 | 4 / 3 / 1 / 1 |
+| Average rating (Loved 2, Fine 1, Bailed 0) | **1.59** | **1.38** |
 
-  subgraph CORE["③ Agent core · lib/"]
-    direction TB
-    PICK["picker + taste<br/>memory arm vs memory-off control"]:::core
-    LOCK["brief lock<br/>sha256-sealed control"]:::core
-    LOOP["drama + extras<br/>settle · live alerts · reminders"]:::core
-    QUEUE["memory queue<br/>paced · idempotent · redacted"]:::core
-    CHAIN["tatum client<br/>native gRPC + GraphQL"]:::core
-  end
+![A/B panel on the dashboard](docs/img/ab-test.jpg)
 
-  subgraph NET["④ Mainnet"]
-    direction TB
-    MW["Walrus Memory relayer<br/>remember · recall"]:::ext
-    WAL[("Walrus<br/>Seal-encrypted blobs")]:::ext
-    TAT["Tatum Sui gateway<br/>sui.rpc.v2"]:::ext
-    SUI[("Sui<br/>MemWalAccount · Blob objects")]:::ext
-  end
+One viewer and 27 picks show the loop working, not a settled effect. The dashboard says "too early to call" for the same reason.
 
-  FD["⚽ Public football data<br/>fixtures · form · timelines · live"]:::ext
-  DB[("Neon Postgres<br/>users · picks · queue · caches")]:::data
+### 3. Night reports, misses included
 
-  TG <--> HOOK
-  WEB --> API
-  CAL --> OUT
-  CRON --> TICK
-  HOOK --> PICK
-  TICK --> PICK & LOOP & QUEUE
-  PICK --> LOCK --> QUEUE
-  API --> CHAIN
-  PICK -- recall --> MW
-  QUEUE -- remember --> MW
-  MW --> WAL
-  WAL -. "one Blob object per memory" .-> SUI
-  CHAIN -- "GetObject · GetTransaction · ListOwnedObjects" --> TAT
-  TAT --> SUI
-  PICK & LOOP --> FD
-  CORE --- DB
+When the viewer's window closes, every finished match in it is ranked by drama from the public timeline. A `[night]` memory records where the picks landed, and a `[form]` memory scores each competition against the night's average, which only the memory picks read back. So far the night's best match was among the picks on **5 of 8 nights** (3 times through a memory pick, twice through the memory-off pick).
+
+### 4. Locked before kick-off, certified on Sui, read through Tatum
+
+Each brief is written to Walrus before the first kick-off. Which pick is the memory-off control is sealed as `sha256("<date>|control=<match>|<salt>")`, and the salt is revealed after the last full time. The bot's real messages for 8 Nov:
+
+```text
+🔒 Tonight's picks are locked on Walrus · GgcS86…4Csk
+Certified on Sui at 18:00 your time, checkpoint 342,975,997, 3 h before the first kick-off. Read back through Tatum.
+
+FT · Rennes 1–2 Lille
+Ligue 1 (FRA)
+Drama 43/100 · 3 goals, 14 attempts
+
+You: loved · ✅ stored on Walrus · OEom5x…094w
+🔓 Memory-off pick: the control in your A/B test.
+🔒 Certified on Sui 3 h before kick-off (checkpoint 342,975,997, via Tatum)
+Seal check: seal ✓ 1aae382c89db1a5e = sha256("2026-11-08|control=a4ep75tn606lhsdz14n5ikt1w|34k69D3hN1w31ltP")
+🧠 Memory switch: with memory off, tonight's top three would have been Rennes v Lille, Crystal Palace v Liverpool and Ipswich Town v Bournemouth. Your memories brought in Sunderland v Chelsea FC.
 ```
 
-## One day with your pundit
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant S as Scheduler
-  participant A as Pundit (agent)
-  participant W as Walrus Memory
-  participant F as Football data
-  participant U as You (Telegram)
-  participant T as Tatum → Sui
-
-  S->>A: your brief time (e.g. 18:00)
-  A->>W: recall "what I rated, loved, bailed on"
-  W-->>A: memories (text + tags)
-  A->>F: fixtures in your window, recent form
-  A->>A: score: memory arm vs memory-off arm
-  A->>U: 3 picks, shuffled, blind A/B
-  A->>W: lock the brief (control sealed as sha256)
-  S->>U: ⏰ kick-off reminder
-  S->>F: live scores every few minutes
-  S-->>U: 🔥 worth switching on (thresholds from memory)
-  S->>F: timeline after full time → drama score
-  S->>U: Full time (no score yet) · did you watch it?
-  U->>A: 😍 Loved
-  A->>W: remember(rating + what happened)
-  W-->>A: blob id (≈25 s)
-  A->>U: ✅ stored · 🔓 memory pick, cited 2 memories · 🔒 locked 74 min before kick-off
-  A->>T: Blob object, end_epoch, certification time
-  Note over A,W: tomorrow's recall includes tonight's lesson
-```
+Anyone can recompute that hash. The certification time comes from Tatum gRPC: `GetObject` on the Blob gives its `previous_transaction`, and `GetTransaction` gives the checkpoint and timestamp.
 
 ## What a memory looks like
 
-Each memory is one readable sentence with a machine-readable tail. Recall returns the sentence, and the agent turns the tags back into weights.
+One readable sentence with a machine-readable tail. Recall returns the sentence, and the picker turns the tags back into weights (21-day half-life). This is the rating above, as stored on Walrus ([blob](https://walruscan.com/mainnet/blob/OEom5xRViyxCfBxlpRnpMoyNql0bKHjTDYBv7Nr094w)):
 
 ```text
-[rating] 2026-11-04 · Loved Como 4–1 Manchester United (UEFA Champions League · League Stage);
-kicked off 23:45 my time. Drama 74/100: 5 goals, 2 after 75'.
-tags: verdict=1.00 comp=2000001032 team=como team=manchester-united signal=high-scoring signal=late-goals kick=evening
-
-[brief] 2026-11-04 · Tonight's picks, locked before kick-off: Barcelona v Aston Villa (03:00); …
-Memory-off pick sealed: commit 3f9a1c2b7d4e5f60. tags: kind=brief
+[rating] 2026-11-09 · Loved Rennes 1–2 Lille (Ligue 1 (FRA) · Regular Season); kicked off 21:00 my time.
+Drama 43/100: 3 goals. tags: verdict=1.00 comp=2000000018 team=rennes team=lille signal=tense kick=evening
 ```
 
-```mermaid
-flowchart LR
-  classDef a fill:#24180f,stroke:#f0531c,color:#fbe9df
-  classDef b fill:#2b2410,stroke:#e8b84a,color:#fff4d6
-  R["Your tap<br/>😍 / 🙂 / 😴 / 🙈"]:::a --> M["Memory sentence<br/>+ tags"]:::a --> E["Seal-encrypted<br/>blob on Walrus"]:::b --> O["Sui Blob object<br/>owner · size · end_epoch"]:::b
-  O -->|"read via Tatum gRPC"| P["/proof + your dashboard"]:::a
-  M -->|"recall tomorrow"| K["Taste weights<br/>(decay: 21-day half-life)"]:::a --> N["Tomorrow's picks<br/>+ alert thresholds"]:::a
-```
+The viewer sees every memory, with its Walrus and Sui links, and what the memories add up to:
 
-## Where Walrus and Tatum do the work
+![The viewer's memory, each with Walrus and Suiscan links](docs/img/memory-table.jpg)
 
-| Concern | How |
-|---|---|
-| Memory store | `@mysten-incubation/memwal` 0.1.12 against the mainnet relayer: `remember` (queued, paced under the ~12/min/key limit, idempotency keys), `getRememberBulkStatus`, `recall` (recent and relevance sorts), `listNamespaces` |
-| Ask your memory | `/ask <question>` runs a semantic `recall` over your own namespace and answers with the matching memories, each linked to its blob, plus the taste weights they add up to |
-| Privacy | Seal-encrypted on Walrus. Namespaces are HMAC-derived, so no user id appears on-chain. Credential-shaped strings are redacted before any write ([lib/memory.ts](lib/memory.ts)) |
-| Chain reads | **Tatum Sui gateway, native gRPC** (`sui.rpc.v2` protos vendored from MystenLabs/sui-apis): `LedgerService/GetServiceInfo`; `LedgerService/GetObject` (the MemWalAccount: owner, delegate keys, active); `StateService/ListOwnedObjects` (every Walrus `Blob` object the account owns, with `storage.end_epoch`); `LedgerService/GetTransaction` (checkpoint time of a lock's certification). GraphQL for delegate-key events ([lib/tatum.ts](lib/tatum.ts)) |
-| Proof | Each stored memory's base64url blob id is converted to the on-chain u256 and matched to its Sui `Blob` object. The dashboard shows the Sui object and expiry epoch next to each memory; `npm run verify` writes [docs/PROOF.md](docs/PROOF.md) |
-| Ownership (optional) | `/own` opens a page that uses the Wallet Standard (no JSON-RPC): the viewer's wallet calls `account::create_account` and `account::add_delegate_key` itself. The server finds the account with Tatum GraphQL (`AccountCreated` event) and verifies the key with Tatum gRPC `GetObject` before switching that viewer's writes and recalls to their account. Removing the key is detected at the next brief ([lib/own.ts](lib/own.ts)) |
-| Portability | Memories follow a documented sentence + tags format ([docs/MEMORY-FORMAT.md](docs/MEMORY-FORMAT.md)); `/export` downloads a taste passport any app can rebuild the same taste from |
-| Blind A/B + locks | Two memory picks and one memory-off control, shuffled, with neutral reasons only. The brief is locked on Walrus before kick-off, with the control sealed by a commit that is revealed after the last full time ([lib/lock.ts](lib/lock.ts)) |
-| Memory switch | At brief time every candidate is scored with memory on and off and both top threes are stored. `/me` shows them once that night's picks have finished (sealed before, so it can't point at the memory-off pick); the night report adds each one's drama and rank; the bot sums it up after the last rating ([lib/picker.ts](lib/picker.ts) `memorySwitch`) |
-| Night reports + league form | Once a window closes, every finished match in it is ranked by drama from the public timeline. A `[night]` memory records where the picks landed (no arms, so the seal holds). A `[form]` memory scores each competition against the night's average, shrunk for small samples. Memory-on picks read league form back, worth at most 16 of 100 points. The record ("night's best caught") is on the landing page and in `/api/stats` ([lib/night.ts](lib/night.ts)) |
+![Taste weights learned from those memories](docs/img/learned.jpg)
 
-## Bot commands
+Seven kinds of memory, 73 in total: `rating` (27), `night` (11), `lesson` (9), `brief` locks (8), `preference` (8), `form` (8) and `system` (2). Mistakes get a correction memory that supersedes the original, which stays on Walrus. Format: [docs/MEMORY-FORMAT.md](docs/MEMORY-FORMAT.md).
+
+## Walrus and Tatum integration
+
+| | How | Code |
+|---|---|---|
+| **Walrus Memory** writes | `@mysten-incubation/memwal` on the mainnet relayer. A durable queue paces `remember` under the relayer limit, with idempotency keys and backoff up to 12 attempts, so a rating is never lost or written twice. `getRememberBulkStatus` settles each write to a blob id. | [lib/memory.ts](lib/memory.ts) |
+| **Walrus Memory** reads | Three `recall` queries before every brief (recent ratings, taste, league form). `/ask` runs a semantic recall over the viewer's own namespace. | [lib/memory.ts](lib/memory.ts), [lib/picker.ts](lib/picker.ts) |
+| Privacy | Seal-encrypted blobs. Namespaces are HMAC-derived, so no Telegram id appears on-chain. Credential-shaped text is redacted before any write. | [lib/memory.ts](lib/memory.ts) |
+| **Tatum** gRPC `LedgerService/GetServiceInfo` | Chain status on /proof | [lib/tatum.ts](lib/tatum.ts) |
+| **Tatum** gRPC `LedgerService/GetObject` | The MemWalAccount (owner, delegate keys, active), and each Blob's last transaction | [lib/tatum.ts](lib/tatum.ts) |
+| **Tatum** gRPC `StateService/ListOwnedObjects` | Every Walrus Blob object the account owns, matched one to one with stored memories (blob id to on-chain u256) | [lib/tatum.ts](lib/tatum.ts) |
+| **Tatum** gRPC `LedgerService/GetTransaction` | When Sui certified each brief lock, for /proof and the bot's lock reply | [lib/lock.ts](lib/lock.ts) |
+| **Tatum** GraphQL `events` | Delegate-key history, and finding a viewer's own account (`AccountCreated`) for `/own` | [lib/own.ts](lib/own.ts) |
+| Ownership | `/own` moves a viewer's memory into a Walrus Memory account their own wallet controls (Wallet Standard, no JSON-RPC). `/export` hands over a documented taste passport. | [lib/own.ts](lib/own.ts) |
+
+![The proof page, read live from Sui through Tatum](docs/img/proof.jpg)
+
+## Try it in a minute
+
+1. Open [t.me/finder_matching_bot](https://t.me/finder_matching_bot) and tap through setup: time zone, brief time, the hours you watch, the leagues you follow. No wallet, nothing to install.
+2. Tonight's three picks arrive at your brief time, followed by the lock reply with its Sui checkpoint.
+3. Try `/ask which leagues do I enjoy?`, `/card`, `/duo` or `/export`. Tap "Why these picks?" for your dashboard.
+4. Open [/proof](https://pocket-pundit.vercel.app/proof) to see every memory matched to its Sui object, read live through Tatum.
+
+<details>
+<summary>All bot commands</summary>
 
 | Command | What it does |
 |---|---|
-| `/start` | Four taps: time zone, brief time, watch window, competitions you follow |
+| `/start` | Four taps: time zone, brief time, watch window, competitions |
 | `/picks` | Tonight's three |
 | `/ask <question>` | Ask your memory, e.g. *which leagues do I enjoy?* |
-| `/card` | Your football taste as a shareable image |
-| `/calendar` | A private feed for Google or Apple Calendar, with a 20-minute reminder on each pick |
-| `/duo` | Pair with a friend: one extra pick a night that suits both tastes and both watch windows (neither sees the other's memories) |
-| `/export` | Download your taste passport: every memory with its Walrus blob link, plus the learned weights |
-| `/own` | Optional: move your memory into a Walrus Memory account your own Sui wallet controls, and remove the app's key whenever you like |
-| `/teach <text>` | Save a preference, e.g. *I love late comebacks* or *no matches after 2am on weekdays* (plain messages work too) |
-| `/me` | Your private dashboard: picks with cited memories, learned weights, memory wall, A/B |
-| `/alerts on\|off` | "Worth switching on" pings during matches |
-| `/spoilers on\|off` | Show scores in full-time messages |
-| `/settings` | Change time zone, brief time, watch window |
+| `/teach <text>` | Save a preference, e.g. *I love late comebacks* |
+| `/card` | Your taste as a shareable image |
+| `/calendar` | A private calendar feed with a reminder on each pick |
+| `/duo` | One extra shared pick a night with a friend, for both tastes and both time zones |
+| `/export` | Your taste passport: every memory with its Walrus link |
+| `/own` | Move your memory into a Walrus Memory account your wallet controls |
+| `/me` | Your private dashboard |
+| `/alerts`, `/spoilers`, `/settings` | Live "worth switching on" pings, scores in full-time messages, your hours |
 
-## Run it
+</details>
+
+## How it fits together
+
+```mermaid
+flowchart LR
+  V["Viewer on Telegram"] -- "one tap after full time" --> A["Pundit agent<br/>Next.js on Vercel"]
+  A -- "3 picks, blind A/B" --> V
+  F["Public football feed<br/>fixtures, form, timelines"] --> A
+  A -- "remember: ratings, locks, night reports" --> M["Walrus Memory relayer"]
+  A -- "recall before each brief" --> M
+  M --> W[("Walrus<br/>Seal-encrypted blobs")]
+  W -. "one Blob object per memory" .-> S[("Sui mainnet")]
+  A -- "gRPC + GraphQL" --> T["Tatum Sui gateway"]
+  T --> S
+```
+
+A Vercel Queues heartbeat drives the agent: every five minutes while matches, reminders or memory writes are in motion, on the half hour otherwise. Neon Postgres holds users, picks and the write queue.
+
+## Engineering
+
+- **84 tests** (`npm test`): unit tests plus end-to-end runs of the whole bot against a fake football world, a fake Telegram and the Walrus Memory SDK's `MemWalMock`.
+- **Deterministic picker, no LLM in the picking path.** Every reason traces to a weight, and every weight to a blob.
+- **Durable, idempotent memory writes**, paced for the relayer's rate limit, with retries and backoff.
+- **Read-only, server-side chain access**: the Tatum key never reaches the browser.
+- `npm run verify` cross-checks every stored memory against its Sui object and writes a snapshot to [docs/PROOF.md](docs/PROOF.md).
 
 ```bash
 npm install
-cp .env.example .env.local                          # Tatum, Walrus Memory, Telegram, app secrets
-node --env-file=.env.local scripts/local-runner.ts  # dev: long-polls Telegram + ticks every minute
-npm run dev                                         # web UI
-npm test                                            # unit tests
-npm run verify                                      # cross-check stored memories against Sui via Tatum
+cp .env.example .env.local                          # Tatum, Walrus Memory, Telegram and app secrets
+node --env-file=.env.local scripts/local-runner.ts  # long-polls Telegram and ticks every minute
+npm run dev                                         # web app
+npm test
 ```
 
 ## Honest limits
 
-- Until 8 Nov the brief showed each pick's score, and the memory-off pick's was usually the lowest, so those first ratings weren't fully blind. Scores and memory reasons now stay hidden until a pick is rated.
-- The hosted relayer runs Seal decryption and embeddings, so it sees plaintext during writes and recalls (Walrus Memory's default path). Don't write anything you wouldn't tell a server you trust.
-- By default the app operates one Walrus Memory account with a namespace per user, so nobody needs a wallet. Viewers who want custody can move to their own account with `/own`. Memories saved before removing the app's key stay readable by that key (Walrus Memory's forward-only revocation).
-- Memories last as long as their Walrus storage (currently about 15 epochs from write). The TS SDK has no renew yet, so expiry is shown rather than hidden.
-- Live alerts depend on the scheduler's cadence, so they can arrive a few minutes after a match turns.
-- Football data comes from a public, anonymous API. There are no odds and no betting. Club crests are generated monograms by default; the feed's official team pictures only appear if `OFFICIAL_CRESTS=1` is set, which stays off until their use is cleared.
-- The public feed has results and timelines for some competitions only (it leaves several big leagues "scheduled"). Picks prefer competitions it settles, on both A/B arms, and matches without a result are still asked about.
+- One real viewer so far, so the A/B shows the loop working, not a settled effect size.
+- Until 8 Nov the brief showed each pick's score, and the memory-off pick's was usually the lowest, so the first ratings weren't fully blind. Scores and memory reasons now stay hidden until a pick is rated.
+- The public football feed settles some competitions only. Picks prefer competitions it settles, on both A/B arms alike.
+- The hosted relayer sees plaintext while it embeds and encrypts (Walrus Memory's default path). Nothing credential-shaped is written.
+- Two night reports needed corrections (6 and 9 Nov). Each correction is a new memory that supersedes the old one, and both stay on Walrus.
+- No odds, no betting, no club branding.
+
+## More
+
+- [docs/TOTAL_RECALL.md](docs/TOTAL_RECALL.md): judging criteria mapped to evidence, with mainnet links
+- [docs/MEMORY-FORMAT.md](docs/MEMORY-FORMAT.md): the memory format and taste rules
+- [docs/PROOF.md](docs/PROOF.md): an on-chain snapshot from 5 Nov (the [/proof](https://pocket-pundit.vercel.app/proof) page is the live version)
+- [docs/BLOG.md](docs/BLOG.md): the story behind it

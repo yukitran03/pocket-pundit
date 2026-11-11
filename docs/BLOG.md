@@ -25,10 +25,11 @@ Then it shows you the score, a drama rating worked out from the real event timel
 Pocket Pundit has no hidden taste profile. Everything it knows about you is a set of Walrus Memory entries in your own namespace. Each one is a readable sentence with a small machine-readable tail:
 
 ```
-[rating] 2026-11-04 · Loved Northbridge 3–2 Eastvale (Premier League); kicked off 21:00 my time.
-Drama 92/100: 5 goals, 2 after 75', 2 lead changes, comeback.
-tags: verdict=1.00 comp=2000000000 team=northbridge team=eastvale signal=late-goals signal=comeback kick=evening
+[rating] 2026-11-09 · Loved Rennes 1–2 Lille (Ligue 1 (FRA) · Regular Season); kicked off 21:00 my time.
+Drama 43/100: 3 goals. tags: verdict=1.00 comp=2000000018 team=rennes team=lille signal=tense kick=evening
 ```
+
+That one is real: [it's on Walrus](https://walruscan.com/mainnet/blob/OEom5xRViyxCfBxlpRnpMoyNql0bKHjTDYBv7Nr094w).
 
 Before each brief the agent runs a recall against your namespace and turns the tags back into weights for competitions, teams, kinds of match and kick-off times. Older memories count for less (a 21-day half-life). If recall returns nothing, the agent genuinely knows nothing, and it says so on day one.
 
@@ -46,9 +47,11 @@ You can't tell which is which until you've rated the match.
 
 To stop anyone (us included) from rewriting history after the results are in, the brief is written to Walrus before the first kick-off. The memory-off pick is sealed as a commitment, `sha256("<date>|control=<match>|<salt>")`. After the last full time the bot reveals the salt, so you can recompute it yourself. The proof page then reads, through Tatum, the Sui checkpoint time at which that blob was certified, and shows how many minutes before kick-off the picks were locked.
 
-The landing page shows the A/B result as it stands. If memory stops helping, that chart will say so.
+The landing page shows the A/B result as it stands. If memory stops helping, that chart will say so. After 27 blind-rated picks (11 Nov), memory picks average 1.59 out of 2 and memory-off picks 1.38. That is one viewer, so it shows the loop working rather than a settled result.
 
 Ratings only cover the three matches you were sent, so we also keep the counterfactual. When the brief is made, every match in your window is scored twice, once with your memories and once with memory off, and both top threes are stored. Once that night's picks have finished, your dashboard shows them side by side: which matches memory brought in, which it dropped and why, the Walrus blobs behind each reason, and the next morning, how every one of the six actually went. The night report ranks every finished match in your window, so a memory-off favourite that turned into a dull 0–0 shows up too.
+
+It also shows memory being wrong. On 8 Nov memory brought in Sunderland v Chelsea and pushed Rennes v Lille from first to sixth. Rennes v Lille was still sent, as the hidden memory-off pick, and the viewer loved it, while Sunderland v Chelsea finished 96th of 125 on drama. That night is on Walrus, where it can't be edited.
 
 ## How Walrus and Tatum do the work
 
@@ -81,6 +84,8 @@ Our server then reads the account through Tatum, confirms the key is there, and 
 ## Things we had to get right
 
 - **Ties at the top.** On 6 Nov four matches tied for the night's best, one of them a pick, and the report named a different one as "one of my picks". A Walrus memory can't be edited, so the fix writes a correction that supersedes the original, and the original stays on Walrus where anyone can check it. Reports now name the pick when it shares the top.
+- **A pick the report left out.** Night reports skip futsal, so a 6–5 futsal game doesn't outrank league matches. On 9 Nov only three matches fell in the window, one of them a futsal game the viewer loved, and the report called it "no result". Picks now always get their place, and a second correction memory supersedes that report.
+- **Keeping the blind test blind.** Until 8 Nov the brief showed each pick's score. Memory picks are scored with memory, so the memory-off pick usually had the lowest number. Scores and memory reasons now stay hidden until a pick is rated.
 
 - **The data feed doesn't settle everything.** The public football API we use fills in results and timelines for some competitions (Premier League, Ligue 1, MLS, J1, V.League) and leaves others marked "scheduled" forever. We measure coverage per competition over the last week and prefer competitions that get settled, on both arms of the A/B so it stays fair. For a match without a result, the bot still asks how it was.
 - **Scheduling on a hobby plan.** Vercel Hobby crons run once a day, and GitHub's scheduler skipped hours. The heartbeat now runs on Vercel Queues: every pass schedules the next one, five minutes out while matches, reminders or memory writes are in motion and on the half hour when nothing is due, so the free database can scale to zero between beats. The chain follows each new deployment.
