@@ -6,7 +6,7 @@ On a normal weekday there are more than 400 professional football matches. If yo
 
 Pocket Pundit does that job for you. It is a Telegram bot, so there is nothing to install and no wallet to set up, and it sends you the three matches worth your evening. After full time you tap how it was. It checks what actually happened in the match, remembers what it learned in your own memory on Walrus, and gets better at choosing for you.
 
-Try it: [t.me/finder_matching_bot](https://t.me/finder_matching_bot) · [pocket-pundit.vercel.app](https://pocket-pundit.vercel.app) · [live proof](https://pocket-pundit.vercel.app/proof)
+Try it: [t.me/finder_matching_bot](https://t.me/finder_matching_bot) · [pocket-pundit.vercel.app](https://pocket-pundit.vercel.app) · [live proof](https://pocket-pundit.vercel.app/proof) · [demo video](https://youtu.be/901pNLxD8W8)
 
 ## What a day looks like
 

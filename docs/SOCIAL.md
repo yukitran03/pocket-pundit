@@ -9,6 +9,7 @@ Tag the Walrus and Tatum accounts and the hackathon hashtag when posting. Attach
 
 I built Pocket Pundit for the Total Recall hackathon: a Telegram bot that picks the matches worth staying up for and learns your taste from one tap after full time.
 
+Demo: youtu.be/901pNLxD8W8
 t.me/finder_matching_bot
 
 2/
@@ -34,4 +35,5 @@ It's a Telegram bot for football fans who can't watch everything. Every evening 
 
 What I'm proudest of is that the memory is real and checkable. Each rating is an encrypted Walrus Memory entry on Sui mainnet. Every brief is a blind A/B test, locked on Walrus before kick-off. The proof page reads everything live through Tatum's Sui gateway.
 
+Demo: https://youtu.be/901pNLxD8W8
 Try it: t.me/finder_matching_bot · pocket-pundit.vercel.app

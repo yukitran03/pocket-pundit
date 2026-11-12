@@ -4,6 +4,7 @@
 
 All product code was committed inside the build window (first commit 3 Nov 2026; the window ran 20 Oct to 10 Nov). Later commits only update documentation and numbers. The bot has run on mainnet every evening since 3 Nov.
 
+- **Demo video (2:38):** https://youtu.be/901pNLxD8W8
 - **Bot:** https://t.me/finder_matching_bot
 - **Web:** https://pocket-pundit.vercel.app
 - **Live proof (read from Sui through Tatum):** https://pocket-pundit.vercel.app/proof

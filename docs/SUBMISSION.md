@@ -4,6 +4,7 @@
 - **Track:** Track 1: Markets & Sports Prediction (the track brief lists "Sports companion that learns your leagues and trusted analysts"). Also entering Best Walrus Memory.
 - **Live app:** https://t.me/finder_matching_bot and https://pocket-pundit.vercel.app
 - **Repo:** https://github.com/yukitran03/pocket-pundit
+- **Demo video (2:38):** https://youtu.be/901pNLxD8W8
 - **Judges start here:** [README](../README.md), then [docs/TOTAL_RECALL.md](TOTAL_RECALL.md)
 
 ## On-chain identity

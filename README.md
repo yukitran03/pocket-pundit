@@ -4,10 +4,11 @@
 
 **Total Recall (Tatum × Walrus) · Track 1: Markets & Sports Prediction · also entering Best Walrus Memory**
 
-[Open the bot](https://t.me/finder_matching_bot) · [Web app](https://pocket-pundit.vercel.app) · [Live proof from Sui](https://pocket-pundit.vercel.app/proof) · [Live numbers](https://pocket-pundit.vercel.app/api/stats) · [Judges' guide](docs/TOTAL_RECALL.md)
-<!-- DEMO_VIDEO -->
+[Demo video (2:38)](https://youtu.be/901pNLxD8W8) · [Open the bot](https://t.me/finder_matching_bot) · [Web app](https://pocket-pundit.vercel.app) · [Live proof from Sui](https://pocket-pundit.vercel.app/proof) · [Live numbers](https://pocket-pundit.vercel.app/api/stats) · [Judges' guide](docs/TOTAL_RECALL.md)
 
-![Pocket Pundit landing page](docs/img/hero.jpg)
+[![Watch the 2:38 demo on YouTube](docs/img/video.jpg)](https://youtu.be/901pNLxD8W8)
+
+*The demo follows one real evening, 8 Nov 2026: the brief, the blind test, the Sui lock read through Tatum, the rating and the reveal, then the record and the proof. [Where everything on screen comes from](docs/VIDEO.md).*
 
 ## In 30 seconds
 
@@ -119,6 +120,8 @@ Seven kinds of memory, 73 in total: `rating` (27), `night` (11), `lesson` (9), `
 2. Tonight's three picks arrive at your brief time, followed by the lock reply with its Sui checkpoint.
 3. Try `/ask which leagues do I enjoy?`, `/card`, `/duo` or `/export`. Tap "Why these picks?" for your dashboard.
 4. Open [/proof](https://pocket-pundit.vercel.app/proof) to see every memory matched to its Sui object, read live through Tatum.
+
+![Pocket Pundit landing page](docs/img/hero.jpg)
 
 <details>
 <summary>All bot commands</summary>

@@ -1,5 +1,7 @@
 # Demo video (2 min 38 s)
 
+**Watch:** https://youtu.be/901pNLxD8W8
+
 One real evening, 8 Nov 2026, from the brief to the reveal, then the record and the proof.
 
 | Time | Chapter |
