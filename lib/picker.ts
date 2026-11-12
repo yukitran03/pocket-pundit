@@ -172,6 +172,7 @@ export function signalPhrase(sig: string): string {
       "lead-changes": "games that swing",
       goalless: "cagey 0–0s",
       "one-sided": "one-sided games",
+      "red-card": "red-card games",
     } as Record<string, string>
   )[sig] ?? sig;
 }

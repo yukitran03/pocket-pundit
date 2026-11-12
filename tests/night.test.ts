@@ -127,6 +127,7 @@ describe("ranking a night (pure)", () => {
     expect(L.tick.labelFor("signal:tense")).toBe("tight games");
     expect(L.tick.labelFor("signal:late-goals")).toBe("late drama");
     expect(L.tick.labelFor("kick:evening")).toBe("evening kick-offs");
+    expect(L.tick.labelFor("signal:red-card")).toBe("red-card games");
   });
 });
 

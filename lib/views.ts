@@ -196,8 +196,10 @@ export function feedItem(raw: string): { text: string; kind: "rating" | "lesson"
       }
     }
   }
-  // Lessons: drop the raw weights and sample sizes older lessons carried.
+  // Lessons: drop the raw weights and sample sizes older lessons carried, and word a bare signal key
+  // the way new lessons do (the 12 Nov lesson said "cooler on one competition and red-card").
   const plain = body
+    .replace(/\bred-card\b(?! games)/g, "red-card games")
     .replace(/\s*\([+-]?\d\.\d{2}\)/g, "")
     .replace(/strongest pulls are/i, "leans towards")
     .replace(/Strongest pushes away:/i, "Cooler on")

@@ -2,7 +2,7 @@
 
 **Track 1: Markets & Sports Prediction.** The track brief lists *"Sports companion that learns your leagues and trusted analysts"* as an example. That is Pocket Pundit: it learns your leagues, teams, match styles and the hours you really watch, and it proves every night that the learning helps. **Also entering Best Walrus Memory.**
 
-All product code was committed inside the build window (first commit 3 Nov 2026; the window ran 20 Oct to 10 Nov). Later commits only update documentation and numbers. The bot has run on mainnet every evening since 3 Nov.
+All product code was committed inside the build window (first commit 3 Nov 2026; the window ran 20 Oct to 10 Nov). Later commits update documentation and numbers, plus one wording fix on 12 Nov (lessons said a bare "red-card" where they meant "red-card games"). The bot has run on mainnet every evening since 3 Nov.
 
 - **Demo video (2:38):** https://youtu.be/901pNLxD8W8
 - **Bot:** https://t.me/finder_matching_bot

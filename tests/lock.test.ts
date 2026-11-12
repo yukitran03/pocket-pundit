@@ -75,5 +75,8 @@ describe("public feed lines", () => {
     const l = feedItem("[lesson] 2026-11-03 · After 3 memories: strongest pulls are AFC Champions League Elite (+0.72) and evening kick-offs (+0.72). Memory picks average 2.00 vs 1.00 for memory-off picks (n=1/1; loved=2, fine=1, bailed=0).");
     expect(l.kind).toBe("lesson");
     expect(l.detail).toBe("After 3 memories: leans towards AFC Champions League Elite and evening kick-offs. Memory picks rate 2.0 vs 1.0 for memory-off picks.");
+    const red = feedItem("[lesson] 2026-11-12 · After 35 memories: you lean towards evening kick-offs and tight games, you're cooler on one competition and red-card. So far memory picks rate 1.6 out of 2 and memory-off picks 1.4 (17 ratings vs 8 ratings).");
+    expect(red.detail).toContain("cooler on one competition and red-card games.");
+    expect(feedItem("[lesson] 2026-11-13 · After 38 memories: you're cooler on red-card games.").detail).toBe("After 38 memories: you're cooler on red-card games.");
   });
 });
