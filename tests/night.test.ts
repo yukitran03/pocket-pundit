@@ -109,7 +109,10 @@ describe("ranking a night (pure)", () => {
     expect(nightLine(rankNight("2026-11-05", 3, [], []), null, false)).toBeNull();
   });
 
-  it("other formats are left out of the ranking", () => {
+  it("other formats are left out of the ranking", async () => {
+    const { NOT_ELEVEN_A_SIDE } = await import("../lib/picker.ts");
+    for (const name of ["eFootball Club Series", "Esports Nations Cup", "Arcade World Cup", "Beach Soccer World Cup", "Futsal Champions League"]) expect(NOT_ELEVEN_A_SIDE.test(name)).toBe(true);
+    for (const name of ["Premier League", "Club World Cup", "U-17 Women's World Cup", "UEFA Nations League", "Eredivisie"]) expect(NOT_ELEVEN_A_SIDE.test(name)).toBe(false);
     expect(OTHER_FORMAT.test("Youth Olympic Futsal Tournaments™ - Women")).toBe(true);
     expect(OTHER_FORMAT.test("Beach Soccer World Cup")).toBe(true);
     expect(OTHER_FORMAT.test("CAF Women's Champions League")).toBe(false);

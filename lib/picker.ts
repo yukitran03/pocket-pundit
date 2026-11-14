@@ -52,7 +52,7 @@ const PRIOR: Record<string, number> = {
 };
 
 /** Futsal, beach soccer and esports share the calendar but aren't what people mean by "a match tonight". */
-export const NOT_ELEVEN_A_SIDE = /futsal|beach soccer|efootball|[a-z]e (?:world cup|nations cup|club world cup|continental cup|club series)|esports/i;
+export const NOT_ELEVEN_A_SIDE = /futsal|beach soccer|e-?football|e-?sports|[a-z]e (?:world cup|nations cup|club world cup|continental cup|club series)/i;
 
 function prior(f: Fixture): number {
   if (NOT_ELEVEN_A_SIDE.test(f.competition)) return 0.02;

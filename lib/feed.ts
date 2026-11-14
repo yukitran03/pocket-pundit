@@ -1,8 +1,7 @@
 // Client for the public football data API (anonymous, documented in its public Swagger UI).
 // Only public, documented GET routes are used. Responses are cached in Postgres to stay polite.
 import { cached } from "./db.ts";
-
-const BASE = process.env.FOOTBALL_API_BASE || "";
+import { env } from "./env.ts";
 
 export interface Fixture {
   matchId: string;
@@ -45,7 +44,7 @@ const desc = (arr: any): string => (Array.isArray(arr) && arr[0]?.Description) |
 
 /** "…/picture/teams-{format}-{size}/123" → a concrete square PNG URL on the public API. */
 const picture = (tpl: unknown): string | null =>
-  typeof tpl === "string" && tpl.startsWith(BASE + "/picture/") ? tpl.replace("{format}", "sq").replace("{size}", "3") : null;
+  typeof tpl === "string" && tpl.startsWith(`${env.footballApiBase()}/picture/`) ? tpl.replace("{format}", "sq").replace("{size}", "3") : null;
 
 // When the feed times out or answers 5xx, fail fast for a little while instead of waiting out every timeout;
 // callers fall back to their last cached copy (see `cached`).
@@ -57,7 +56,7 @@ async function getJson(path: string, timeoutMs = 15000): Promise<any> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const r = await fetch(`${BASE}/${path}`, { signal: ctrl.signal, headers: { accept: "application/json" } });
+    const r = await fetch(`${env.footballApiBase()}/${path}`, { signal: ctrl.signal, headers: { accept: "application/json" } });
     if (r.status >= 500) downUntil = Date.now() + COOL_OFF_MS;
     if (!r.ok) throw new Error(`football api ${r.status} for ${path.split("?")[0]}`);
     return await r.json();

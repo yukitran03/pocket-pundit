@@ -19,6 +19,10 @@ export const env = {
   appUrl: () => (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, ""),
   databaseUrl: () => process.env.DATABASE_URL || process.env.POSTGRES_URL || "",
   publicFeedUser: () => process.env.PUBLIC_FEED_USER || "",
+  footballApiBase: () => {
+    const base = need("FOOTBALL_API_BASE");
+    return base.endsWith("/") ? base.slice(0, -1) : base;
+  },
   // Off by default: club crests are club trademarks; turn on only once their use has been cleared.
   officialCrests: () => process.env.OFFICIAL_CRESTS === "1",
 };

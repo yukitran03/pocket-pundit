@@ -30,7 +30,11 @@ export interface TgCall {
   body: any;
 }
 
+/** Base URL the client is pointed at in tests (the real one comes from FOOTBALL_API_BASE). */
+export const FEED_BASE = "https://feed.test/api/v3";
+
 export function createWorld() {
+  process.env.FOOTBALL_API_BASE = FEED_BASE;
   const matches = new Map<string, FakeMatch>();
   const forms = new Map<string, { MatchesPlayed: number; Wins: number; Draws: number; Losses: number; GoalsScored: number; GoalsAgainst: number }>();
   const tg: TgCall[] = [];
@@ -70,7 +74,7 @@ export function createWorld() {
       const result = method === "sendMessage" || method === "sendPhoto" ? { message_id: ++msgId, chat: { id: body.chat_id } } : true;
       return Response.json({ ok: true, result });
     }
-    if (url.startsWith("https://feed.test/api/v3/")) {
+    if (url.startsWith(`${FEED_BASE}/`)) {
       if (feed.down) return new Response("Service Unavailable", { status: 503 });
       const u = new URL(url);
       const path = u.pathname.replace("/api/v3/", "");
